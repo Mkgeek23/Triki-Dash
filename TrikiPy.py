@@ -3,6 +3,7 @@ import struct
 from dataclasses import dataclass
 from bleak import BleakScanner, BleakClient
 
+
 @dataclass
 class TrikiData:
     ax: int
@@ -12,7 +13,14 @@ class TrikiData:
     gy: int
     gz: int
 
+
 class TrikiDevice:
+    # Stałe protokołu
+    _DATA_HEADER = 0x22       # ramka IMU
+    _BUTTON_HEADER = 0x21     # ramka przycisku
+    _DATA_LEN = 14            # 2 (nagłówek+status) + 6*int16
+    _BUTTON_LEN = 5
+
     def __init__(self, BTName: str = "Triki", literal: bool = False):
         self.BTName = BTName
         self.literal = literal
@@ -25,6 +33,7 @@ class TrikiDevice:
         self._data_buffer = bytearray()
         self._data_queue = asyncio.Queue()
         self._is_streaming = False
+        self._button_pressed = False
 
     async def connectTriki(self, timeout: float = 10.0) -> bool:
         try:
@@ -69,19 +78,45 @@ class TrikiDevice:
             return False
 
     def _notification_handler(self, sender, data):
+        # Dokładamy nowe bajty do bufora strumieniowego
         self._data_buffer.extend(data)
 
-        while len(self._data_buffer) >= 14:
-            if self._data_buffer[0] == 0x22 and self._data_buffer[1] == 0x00:
-                packet = self._data_buffer[:14]
+        # Ramkujemy WYŁĄCZNIE po nagłówku + długości.
+        # NIE odrzucamy ramki IMU na podstawie drugiego bajtu — to bajt
+        # statusu/flag (zawiera m.in. stan przycisku), który bywa != 0x00.
+        while self._data_buffer:
+            head = self._data_buffer[0]
+
+            if head == self._DATA_HEADER:
+                if len(self._data_buffer) < self._DATA_LEN:
+                    break  # czekamy na resztę ramki
+
+                packet = self._data_buffer[:self._DATA_LEN]
+
+                # packet[1] = bajt statusu/flag. Najmłodszy bit traktujemy
+                # jako stan przycisku, aby nie gubić go między ramkami 0x21.
+                self._button_pressed = bool(packet[1] & 0x01)
+
                 ax, ay, az, gx, gy, gz = struct.unpack('<hhhhhh', packet[2:14])
-                parsed_data = TrikiData(ax, ay, az, gx, gy, gz)
-                self._data_queue.put_nowait(parsed_data)
-                self._data_buffer = self._data_buffer[14:]
-            elif self._data_buffer[0] == 0x21:
-                self._data_buffer = self._data_buffer[5:]
+                self._data_queue.put_nowait(TrikiData(ax, ay, az, gx, gy, gz))
+
+                del self._data_buffer[:self._DATA_LEN]
+
+            elif head == self._BUTTON_HEADER:
+                if len(self._data_buffer) < self._BUTTON_LEN:
+                    break  # czekamy na resztę ramki
+
+                packet = self._data_buffer[:self._BUTTON_LEN]
+                self._button_pressed = bool(packet[2])
+
+                del self._data_buffer[:self._BUTTON_LEN]
+
             else:
+                # Nieznany bajt — przesuwamy się o 1, żeby zresynchronizować.
                 self._data_buffer.pop(0)
+
+    def isButtonPressed(self) -> bool:
+        return self._button_pressed
 
     async def startTriki(self) -> bool:
         if not self._client or not self._client.is_connected:
@@ -90,6 +125,8 @@ class TrikiDevice:
             return False
 
         try:
+            # Czyścimy bufor, żeby nie zaczynać od resztek poprzedniej sesji
+            self._data_buffer.clear()
             await self._client.start_notify(self._TXUUID, self._notification_handler)
             wake_command = b'\x20\x10\x00\xd0\x07\x34\x00\x03'
             await self._client.write_gatt_char(self._RXUUID, wake_command, response=False)
@@ -115,6 +152,8 @@ class TrikiDevice:
                 await self._client.stop_notify(self._TXUUID)
             await self._client.disconnect()
             self._is_streaming = False
+            self._button_pressed = False
+            self._data_buffer.clear()
             return True
         except Exception:
             return False
