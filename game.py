@@ -953,7 +953,7 @@ def game_loop(screen, upgrades):
                     s_boost.play()
                     status_msg = "SPRINT!"
                     status_timer = 60
-                if not paused and not portal_mode:
+                if not paused:
                     if e.key == pygame.K_LEFT or e.key == pygame.K_a:
                         player.move_left()
                     if e.key == pygame.K_RIGHT or e.key == pygame.K_d:
@@ -961,6 +961,7 @@ def game_loop(screen, upgrades):
                     if e.key == pygame.K_ESCAPE:
                         triki_running = False
                         return None, None, None, None
+                if not paused and not portal_mode:
                     if e.key == pygame.K_SPACE:
                         bullet = player.shoot()
                         if bullet:
@@ -1032,7 +1033,7 @@ def game_loop(screen, upgrades):
                 status_timer = 60
                 s_portal.play()
 
-            player.update(None, total_coins)
+            player.update(triki_analog if triki_connected else None, total_coins)
             if player.boost_timer > 0:
                 player.boost_timer -= 1
 
