@@ -671,6 +671,7 @@ def upgrade_cost(level, base):
     return base + level * base // 2
 
 def show_shop(screen, upgrades):
+    global triki_button
     max_levels = {'sprint_level': 3, 'magnet_level': 3, 'life_level': 2}
     labels = {
         'sprint_level': ('Dłuższy sprint', f'Czas sprintu +{50 * (upgrades["sprint_level"] + 1)}%'),
@@ -680,31 +681,25 @@ def show_shop(screen, upgrades):
     keys = ['sprint_level', 'magnet_level', 'life_level']
     selected = 0
     clock = pygame.time.Clock()
+    last_tilt_time = 0
+    prev_tilt = 0.0
+
+    def buy_upgrade():
+        nonlocal upgrades
+        key = keys[selected]
+        lvl = upgrades[key]
+        if lvl < max_levels[key]:
+            cost = upgrade_cost(lvl, 2)
+            if upgrades['stars'] >= cost:
+                upgrades['stars'] -= cost
+                upgrades[key] += 1
+                save_upgrades(upgrades)
+                make_sound(880, 100).play()
+            else:
+                make_sound(200, 200).play()
 
     while True:
         clock.tick(30)
-        screen.fill(BLACK)
-        draw_text(screen, "SKLEP ULEPSZEŃ", 42, WIDTH // 2, 50, GOLD)
-        draw_text(screen, f"Dostępne gwiazdki: {upgrades['stars']} ★", 26, WIDTH // 2, 95, WHITE)
-
-        for i, key in enumerate(keys):
-            y = 150 + i * 110
-            lvl = upgrades[key]
-            ml = max_levels[key]
-            name, desc = labels[key]
-            maxed = lvl >= ml
-            color = CYAN if i == selected else WHITE
-            draw_text(screen, name, 24, 150, y, color, center=False)
-            draw_text(screen, desc, 16, 150, y + 30, LIGHT_GRAY, center=False)
-            stars_disp = "★" * lvl + "☆" * (ml - lvl)
-            draw_text(screen, stars_disp, 20, 150, y + 52, GOLD, center=False)
-            if not maxed:
-                cost = upgrade_cost(lvl, 2)
-                draw_text(screen, f"Koszt: {cost} ★", 18, 500, y + 15, color, center=False)
-            else:
-                draw_text(screen, "MAX", 20, 500, y + 15, GREEN, center=False)
-
-        draw_text(screen, "ENTER - kup | STRZAŁKI - wybór | ESC - powrót", 18, WIDTH // 2, HEIGHT - 40, LIGHT_GRAY)
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
@@ -716,77 +711,245 @@ def show_shop(screen, upgrades):
                     selected = (selected + 1) % len(keys)
                 if e.key == pygame.K_UP:
                     selected = (selected - 1) % len(keys)
-                if e.key == pygame.K_RETURN:
-                    key = keys[selected]
-                    lvl = upgrades[key]
-                    if lvl < max_levels[key]:
-                        cost = upgrade_cost(lvl, 2)
-                        if upgrades['stars'] >= cost:
-                            upgrades['stars'] -= cost
-                            upgrades[key] += 1
-                            save_upgrades(upgrades)
-                            make_sound(880, 100).play()
-                        else:
-                            make_sound(200, 200).play()
+                if e.key == pygame.K_RETURN or e.key == pygame.K_SPACE:
+                    buy_upgrade()
+
+        now = pygame.time.get_ticks()
+        tilt = triki_analog
+        if abs(tilt) > 0.7 and abs(prev_tilt) < 0.4 and now - last_tilt_time > 600:
+            if tilt > 0:
+                selected = (selected + 1) % len(keys)
+            else:
+                selected = (selected - 1) % len(keys)
+            last_tilt_time = now
+        prev_tilt = tilt
+
+        if triki_button:
+            triki_button = False
+            buy_upgrade()
+
+        labels = {
+            'sprint_level': ('Dłuższy sprint', f'Czas sprintu +{50 * (upgrades["sprint_level"] + 1)}%'),
+            'magnet_level': ('Większy magnes', f'Zasięg +{(upgrades["magnet_level"] + 1) * 40}px'),
+            'life_level': ('Dodatkowe życie', f'+{upgrades["life_level"] + 1} życie na start'),
+        }
+
+        screen.fill(BLACK)
+        menu_draw_frame(screen, GOLD)
+        draw_text(screen, "SKLEP ULEPSZEŃ", 42, WIDTH // 2, 50, GOLD)
+        draw_text(screen, f"Dostępne gwiazdki: {upgrades['stars']} ★", 26, WIDTH // 2, 95, WHITE)
+
+        for i, key in enumerate(keys):
+            y = 150 + i * 110
+            lvl = upgrades[key]
+            ml = max_levels[key]
+            name, desc = labels[key]
+            maxed = lvl >= ml
+            color = CYAN if i == selected else WHITE
+            prefix = "► " if i == selected else "  "
+            draw_text(screen, prefix + name, 24, 150, y, color, center=False)
+            draw_text(screen, desc, 16, 150, y + 30, LIGHT_GRAY, center=False)
+            stars_disp = "★" * lvl + "☆" * (ml - lvl)
+            draw_text(screen, stars_disp, 20, 150, y + 52, GOLD, center=False)
+            if not maxed:
+                cost = upgrade_cost(lvl, 2)
+                draw_text(screen, f"Koszt: {cost} ★", 18, 500, y + 15, color, center=False)
+            else:
+                draw_text(screen, "MAX", 20, 500, y + 15, GREEN, center=False)
+
+        draw_text(screen, "Przechyl Triki / Strzałki - wybór  |  Przycisk / ENTER - kup  |  ESC - powrót", 16, WIDTH // 2, HEIGHT - 40, LIGHT_GRAY)
+        pygame.display.flip()
+
+def menu_draw_frame(screen, color=CYAN):
+    pygame.draw.rect(screen, color, (10, 10, WIDTH - 20, HEIGHT - 20), 3)
+    for i in range(8):
+        px = 14 + i * ((WIDTH - 28) // 7)
+        pygame.draw.rect(screen, color, (px, 14, (WIDTH - 28) // 7 - 2, 4))
+
+def show_start(screen):
+    global triki_button
+    menu_options = ["NOWA GRA", "SKLEP", "WYJŚCIE"]
+    selected = 0
+    clock = pygame.time.Clock()
+    blink = 0
+    last_tilt_time = 0
+    prev_tilt = 0.0
+    connection_status = "Łączenie z Triki..."
+    status_color = LIGHT_GRAY
+    status_msgs = []
+    while not triki_status_queue.empty():
+        status_msgs.append(triki_status_queue.get())
+    if status_msgs:
+        connection_status = status_msgs[-1]
+        if "nie znaleziony" in connection_status:
+            status_color = RED
+        elif "gotowy" in connection_status or "podłączony" in connection_status:
+            status_color = GREEN
+
+    while True:
+        clock.tick(30)
+        blink = (blink + 1) % 60
+
+        while not triki_status_queue.empty():
+            connection_status = triki_status_queue.get()
+            if "nie znaleziony" in connection_status:
+                status_color = RED
+            elif "gotowy" in connection_status or "podłączony" in connection_status:
+                status_color = GREEN
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                return False
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_UP or e.key == pygame.K_LEFT:
+                    selected = (selected - 1) % len(menu_options)
+                if e.key == pygame.K_DOWN or e.key == pygame.K_RIGHT:
+                    selected = (selected + 1) % len(menu_options)
+                if e.key == pygame.K_SPACE or e.key == pygame.K_RETURN:
+                    if selected == 0:
+                        return True
+                    elif selected == 1:
+                        upgrades = load_upgrades()
+                        if not show_shop(screen, upgrades):
+                            return False
+                    elif selected == 2:
+                        return False
+                if e.key == pygame.K_ESCAPE:
+                    return False
+
+        now = pygame.time.get_ticks()
+        tilt = triki_analog
+        if abs(tilt) > 0.7 and abs(prev_tilt) < 0.4 and now - last_tilt_time > 600:
+            if tilt > 0:
+                selected = (selected + 1) % len(menu_options)
+            else:
+                selected = (selected - 1) % len(menu_options)
+            last_tilt_time = now
+        prev_tilt = tilt
+
+        if triki_button:
+            triki_button = False
+            if selected == 0:
+                return True
+            elif selected == 1:
+                upgrades = load_upgrades()
+                if not show_shop(screen, upgrades):
+                    return False
+            elif selected == 2:
+                return False
+
+        screen.fill(BLACK)
+        menu_draw_frame(screen, CYAN)
+
+        draw_text(screen, "TRiKI RUNNER", 56, WIDTH // 2, 65, GREEN)
+        for i in range(WIDTH):
+            c = (min(255, i // 2), min(255, i // 3), 80)
+            pygame.draw.line(screen, c, (i, 115), (i, 116))
+
+        for i, opt in enumerate(menu_options):
+            y = 200 + i * 80
+            color = CYAN if i == selected else WHITE
+            if i == selected:
+                prefix = "► " if blink < 30 else "  "
+                draw_text(screen, prefix + opt, 34, WIDTH // 2, y, color)
+            else:
+                draw_text(screen, "  " + opt, 34, WIDTH // 2, y, color)
+
+        if triki_connected and triki_battery >= 0:
+            status_text = f"Triki: Połączony (Bateria: {triki_battery}%)"
+            status_color = GREEN
+        elif triki_connected:
+            status_text = "Triki: Połączony"
+            status_color = GREEN
+        else:
+            status_text = f"Triki: {connection_status}"
+        draw_text(screen, status_text, 16, WIDTH // 2, HEIGHT - 55, status_color)
+
+        draw_text(screen, "Przechyl Triki / Strzałki - wybór  |  Przycisk / SPACJA - akceptuj", 14, WIDTH // 2, HEIGHT - 30, LIGHT_GRAY)
 
         pygame.display.flip()
 
-def show_start(screen):
-    screen.fill(BLACK)
-    draw_text(screen, "TRiKI RUNNER", 64, WIDTH // 2, HEIGHT // 2 - 120, GREEN)
-    draw_text(screen, "Przechylaj Triki lub używaj strzałek", 20, WIDTH // 2, HEIGHT // 2 - 40, LIGHT_GRAY)
-    draw_text(screen, "[P] pauza  [S] sprint  [SPACJA] strzał  [U] sklep  [ESC] wyjście", 17, WIDTH // 2, HEIGHT // 2 - 10, LIGHT_GRAY)
-    draw_text(screen, "Zbieraj monety, omijaj przeszkody!", 20, WIDTH // 2, HEIGHT // 2 + 25, YELLOW)
-    draw_text(screen, "Portal co 3000 dystansu = sekretna strefa", 18, WIDTH // 2, HEIGHT // 2 + 55, CYAN)
-    draw_text(screen, "Naciśnij SPACJĘ", 24, WIDTH // 2, HEIGHT // 2 + 105, WHITE)
-    pygame.display.flip()
-    while True:
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                return False
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_SPACE:
-                    return True
-                if e.key == pygame.K_u:
-                    upgrades = load_upgrades()
-                    if not show_shop(screen, upgrades):
-                        return False
-                if e.key == pygame.K_ESCAPE:
-                    return False
-        pygame.time.wait(50)
-
 def show_over(screen, score, coins, highscore, stars, best_stars, challenges):
-    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    screen.blit(overlay, (0, 0))
-    draw_text(screen, "KONIEC GRY", 64, WIDTH // 2, HEIGHT // 2 - 130, RED)
-    star_text = " ".join(["★" if i < stars else "☆" for i in range(3)])
-    draw_text(screen, star_text, 40, WIDTH // 2, HEIGHT // 2 - 75, GOLD)
-    draw_text(screen, f"Dystans: {score}", 26, WIDTH // 2, HEIGHT // 2 - 30, WHITE)
-    draw_text(screen, f"Monety: {coins}", 22, WIDTH // 2, HEIGHT // 2 + 5, YELLOW)
-    draw_text(screen, f"Rekord: {highscore}", 18, WIDTH // 2, HEIGHT // 2 + 35, ORANGE)
-    best_star_text = " ".join(["★" if i < best_stars else "☆" for i in range(3)])
-    draw_text(screen, f"Najlepsze: {best_star_text}", 18, WIDTH // 2, HEIGHT // 2 + 60, GOLD)
+    global triki_button
+    menu_options = ["GRAJ PONOWNIE", "SKLEP", "WYJŚCIE"]
+    selected = 0
+    clock = pygame.time.Clock()
+    blink = 0
+    last_tilt_time = 0
+    prev_tilt = 0.0
 
-    done_count = sum(1 for c in challenges['challenges'] if c['done'])
-    draw_text(screen, f"Wyzwania: {done_count}/3", 18, WIDTH // 2, HEIGHT - 120, PURPLE)
-
-    draw_text(screen, "SPACJA - restart | ESC - wyjście | U - sklep", 18, WIDTH // 2, HEIGHT - 80, LIGHT_GRAY)
-    pygame.display.flip()
     while True:
+        clock.tick(30)
+        blink = (blink + 1) % 60
+
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 return False
             if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_SPACE:
-                    return True
-                if e.key == pygame.K_u:
-                    upgrades = load_upgrades()
-                    if not show_shop(screen, upgrades):
+                if e.key == pygame.K_UP or e.key == pygame.K_LEFT:
+                    selected = (selected - 1) % len(menu_options)
+                if e.key == pygame.K_DOWN or e.key == pygame.K_RIGHT:
+                    selected = (selected + 1) % len(menu_options)
+                if e.key == pygame.K_SPACE or e.key == pygame.K_RETURN:
+                    if selected == 0:
+                        return True
+                    elif selected == 1:
+                        upgrades = load_upgrades()
+                        if not show_shop(screen, upgrades):
+                            return False
+                    elif selected == 2:
                         return False
                 if e.key == pygame.K_ESCAPE:
                     return False
-        pygame.time.wait(50)
+
+        now = pygame.time.get_ticks()
+        tilt = triki_analog
+        if abs(tilt) > 0.7 and abs(prev_tilt) < 0.4 and now - last_tilt_time > 600:
+            if tilt > 0:
+                selected = (selected + 1) % len(menu_options)
+            else:
+                selected = (selected - 1) % len(menu_options)
+            last_tilt_time = now
+        prev_tilt = tilt
+
+        if triki_button:
+            triki_button = False
+            if selected == 0:
+                return True
+            elif selected == 1:
+                upgrades = load_upgrades()
+                if not show_shop(screen, upgrades):
+                    return False
+            elif selected == 2:
+                return False
+
+        screen.fill(BLACK)
+        menu_draw_frame(screen, RED)
+
+        draw_text(screen, "KONIEC GRY", 56, WIDTH // 2, 60, RED)
+
+        star_text = " ".join(["★" if i < stars else "☆" for i in range(3)])
+        draw_text(screen, star_text, 36, WIDTH // 2, 115, GOLD)
+        draw_text(screen, f"Dystans: {score}", 22, WIDTH // 2, 155, WHITE)
+        draw_text(screen, f"Monety: {coins}", 20, WIDTH // 2, 185, YELLOW)
+        draw_text(screen, f"Rekord: {highscore}", 16, WIDTH // 2, 215, ORANGE)
+        best_star_text = " ".join(["★" if i < best_stars else "☆" for i in range(3)])
+        draw_text(screen, f"Najlepsze: {best_star_text}", 16, WIDTH // 2, 235, GOLD)
+
+        done_count = sum(1 for c in challenges['challenges'] if c['done'])
+        draw_text(screen, f"Wyzwania: {done_count}/3", 18, WIDTH // 2, HEIGHT - 100, PURPLE)
+
+        for i, opt in enumerate(menu_options):
+            y = 290 + i * 60
+            color = CYAN if i == selected else WHITE
+            if i == selected:
+                prefix = "► " if blink < 30 else "  "
+                draw_text(screen, prefix + opt, 28, WIDTH // 2, y, color)
+            else:
+                draw_text(screen, "  " + opt, 28, WIDTH // 2, y, color)
+
+        draw_text(screen, "Przechyl Triki / Strzałki - wybór  |  Przycisk / SPACJA - akceptuj", 14, WIDTH // 2, HEIGHT - 40, LIGHT_GRAY)
+        pygame.display.flip()
 
 def draw_tilt_bar(screen, val):
     bar_w, bar_h = 200, 10
