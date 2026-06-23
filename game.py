@@ -52,9 +52,8 @@ triki_battery = -1
 triki_offset = 0.0
 
 triki_button = False
-triki_prev_accel_mag = 0.0
+triki_button_raw = False
 triki_accel = (0, 0, 0)
-triki_button_cooldown = 0
 
 s_coin = s_hit = s_shield = s_milestone = s_boost = s_portal = s_shoot = None
 
@@ -583,7 +582,7 @@ def triki_thread():
     asyncio.run(_triki_loop())
 
 async def _triki_loop():
-    global triki_connected, triki_running, triki_analog, triki_raw, triki_battery, triki_offset, triki_button, triki_prev_accel_mag, triki_accel, triki_button_cooldown
+    global triki_connected, triki_running, triki_analog, triki_raw, triki_battery, triki_offset, triki_button, triki_button_raw, triki_accel
     triki = TrikiDevice(BTName="Triki", literal=False)
     if not await triki.connectTriki(timeout=5.0):
         triki_status_queue.put("Triki nie znaleziony. Graj strzałkami.")
@@ -605,32 +604,27 @@ async def _triki_loop():
     if samples:
         triki_offset = sum(samples) / len(samples)
     triki_status_queue.put("Triki gotowy! Przechylaj w lewo/prawo")
-    bat_counter = 0
+    triki_prev_button = False
     try:
         while triki_running:
             try:
-                d = await asyncio.wait_for(triki.getTrikiData(), timeout=0.5)
+                d = await asyncio.wait_for(triki.getTrikiData(), timeout=0.05)
                 triki_raw = (d.gx, d.gy, d.gz)
                 triki_accel = (d.ax, d.ay, d.az)
-                mag = math.sqrt(d.ax**2 + d.ay**2 + d.az**2)
-                if triki_prev_accel_mag > 0 and abs(mag - triki_prev_accel_mag) > 4000 and triki_button_cooldown <= 0:
-                    triki_button = True
-                    triki_button_cooldown = 20
-                triki_prev_accel_mag = mag
-                if triki_button_cooldown > 0:
-                    triki_button_cooldown -= 1
-                gx_corrected = d.gx - triki_offset
-                if abs(gx_corrected) < 50:
-                    triki_analog = 0.0
-                else:
-                    triki_analog = max(-1.0, min(1.0, gx_corrected / 1000.0))
-                bat_counter += 1
-                if bat_counter >= 180:
-                    bat_counter = 0
-                    b = await triki.getBatteryLevel()
-                    triki_battery = b
             except asyncio.TimeoutError:
                 pass
+
+            btn = triki.isButtonPressed()
+            if btn and not triki_prev_button:
+                triki_button = True
+            triki_prev_button = btn
+            triki_button_raw = btn
+
+            gx_corrected = triki_raw[0] - triki_offset
+            if abs(gx_corrected) < 50:
+                triki_analog = 0.0
+            else:
+                triki_analog = max(-1.0, min(1.0, gx_corrected / 1000.0))
     finally:
         await triki.stopTriki()
 
@@ -826,6 +820,18 @@ def draw_ammo(screen, ammo, max_ammo):
     if ammo == 0:
         draw_text(screen, "BRAK AMUNICJI!", 14, 20 + max_ammo * 16 + 4, HEIGHT - 26, (255, 100, 100), center=False)
 
+def draw_button_indicator(screen, triki_connected, button_pressed):
+    x, y = WIDTH - 50, HEIGHT - 55
+    if not triki_connected:
+        return
+    outer = CYAN if button_pressed else (50, 50, 60)
+    inner = (150, 240, 255) if button_pressed else (30, 35, 45)
+    pygame.draw.circle(screen, outer, (x, y), 10)
+    pygame.draw.circle(screen, inner, (x, y), 6)
+    if button_pressed:
+        for r in range(12, 18, 3):
+            pygame.draw.circle(screen, (60, 180, 220), (x, y), r, 1)
+
 def draw_combo_bar(screen, combo):
     bar_w, bar_h = 120, 8
     bx = 20
@@ -878,7 +884,7 @@ def spawn_group_obstacle(obstacles, base_speed):
         obstacles.append(Obstacle(x, base_speed, 'small'))
 
 def game_loop(screen, upgrades):
-    global triki_analog, triki_running, triki_battery, triki_button
+    global triki_analog, triki_running, triki_battery, triki_button, triki_button_raw
     extra_lives = upgrades.get('life_level', 0)
     sprint_bonus = upgrades.get('sprint_level', 0) * 60
     magnet_bonus = upgrades.get('magnet_level', 0) * 40
@@ -1433,6 +1439,7 @@ def game_loop(screen, upgrades):
         draw_lives(screen, player.lives)
         draw_shield_indicator(screen, player.shield)
         draw_ammo(screen, player.ammo, player.max_ammo)
+        draw_button_indicator(screen, triki_connected, triki_button_raw)
         draw_combo_bar(screen, player.combo)
         draw_challenge_hud(screen, challenges)
 
