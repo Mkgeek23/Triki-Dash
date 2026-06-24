@@ -104,6 +104,18 @@ _save_tick = 0
 _coins_need_save = False
 _challenges_need_save = False
 
+_font_cache = {}
+
+_night_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+_flare_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+_trans_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+_fog_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+for fy in range(0, HEIGHT, 2):
+    fa = int(40 * (1 - fy / HEIGHT))
+    pygame.draw.line(_fog_surf, (40, 38, 50, fa), (0, fy), (WIDTH, fy))
+_slow_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+_slow_surf.fill((50, 80, 180, 40))
+
 s_coin = s_hit = s_shield = s_milestone = s_boost = s_portal = s_shoot = None
 
 UPGRADE_FILE = "triki_upgrades.json"
@@ -131,22 +143,19 @@ class Particle:
                               random.uniform(2, 5)])
 
     def update(self):
-        for p in self.parts[:]:
+        for p in self.parts:
             p[0] += p[2]
             p[1] += p[3]
             p[3] += 0.1
             p[4] -= p[5]
-            if p[4] <= 0:
-                self.parts.remove(p)
+        self.parts = [p for p in self.parts if p[4] > 0]
 
     def draw(self, screen, offset=(0, 0)):
         ox, oy = offset
         for p in self.parts:
             alpha = max(0, p[4])
             sz = max(1, int(p[5] * 0.6))
-            s = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
-            pygame.draw.circle(s, (255, 255, 255, int(alpha)), (sz, sz), sz)
-            screen.blit(s, (int(p[0] - sz + ox), int(p[1] - sz + oy)))
+            pygame.draw.circle(screen, (255, 255, 255, int(alpha)), (int(p[0] + ox), int(p[1] + oy)), sz)
 
     @property
     def alive(self):
@@ -235,6 +244,8 @@ def flush_saves(total_coins_val=None, challenges_val=None):
         _challenges_need_save = False
 
 class Player:
+    _ghost_surf = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE), pygame.SRCALPHA)
+
     def __init__(self, extra_lives=0):
         self.x = WIDTH // 2 - PLAYER_SIZE // 2
         self.target_x = self.x
@@ -288,12 +299,11 @@ class Player:
             self.boost_timer -= 1
         if abs(triki_val or 0) > 0.7:
             self.ghost_positions.append([self.x, self.y, 180])
-        if len(self.ghost_positions) > 10:
-            self.ghost_positions.pop(0)
-        for g in self.ghost_positions[:]:
+        self.ghost_positions = [g for g in self.ghost_positions if g[2] > 4]
+        for g in self.ghost_positions:
             g[2] -= 4
-            if g[2] <= 0:
-                self.ghost_positions.remove(g)
+        if len(self.ghost_positions) > 10:
+            self.ghost_positions = self.ghost_positions[-10:]
 
     def skin_color(self, total_coins):
         if total_coins >= 500:
@@ -311,16 +321,14 @@ class Player:
             return
         px, py = int(self.x) + offset[0], int(self.y) + offset[1]
 
+        c = self.skin_color(total_coins)
         for gx, gy, ga in self.ghost_positions:
             if ga <= 0:
                 continue
             gpx = int(gx) + offset[0]
             gpy = int(gy) + offset[1]
-            gh = pygame.Rect(gpx, gpy, PLAYER_SIZE, PLAYER_SIZE)
-            c = self.skin_color(total_coins)
-            alpha_surf = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE), pygame.SRCALPHA)
-            alpha_surf.fill((c[0], c[1], c[2], min(ga, 80)))
-            screen.blit(alpha_surf, (gpx, gpy))
+            Player._ghost_surf.fill((c[0], c[1], c[2], min(ga, 80)))
+            screen.blit(Player._ghost_surf, (gpx, gpy))
 
         body = pygame.Rect(px, py, PLAYER_SIZE, PLAYER_SIZE)
         color = PURPLE if self.shield else self.skin_color(total_coins)
@@ -372,6 +380,28 @@ class Obstacle:
         self.rot = 0
         self.rot_speed = random.uniform(-4, 4)
         self.hp = 3 if otype == 'boss' else 1
+        if otype == 'boss':
+            self._surf_boss = pygame.Surface((self.size, 34), pygame.SRCALPHA)
+            pygame.draw.rect(self._surf_boss, (120, 20, 40), (0, 0, self.size, 34), border_radius=4)
+            pygame.draw.rect(self._surf_boss, (80, 10, 30), (0, 0, self.size, 34), 2, border_radius=4)
+            for i in range(5):
+                lx = 8 + i * (self.size - 16) // 4
+                pygame.draw.circle(self._surf_boss, (200, 30, 50), (lx, 17), 5)
+            self._surf_boss_dmg = pygame.Surface((self.size, 34), pygame.SRCALPHA)
+            pygame.draw.rect(self._surf_boss_dmg, (180, 20, 30), (0, 0, self.size, 34), border_radius=4)
+            pygame.draw.rect(self._surf_boss_dmg, (80, 10, 30), (0, 0, self.size, 34), 2, border_radius=4)
+            for i in range(5):
+                lx = 8 + i * (self.size - 16) // 4
+                pygame.draw.circle(self._surf_boss_dmg, (200, 30, 50), (lx, 17), 5)
+            self._surf_boss_night = pygame.Surface((self.size, 34), pygame.SRCALPHA)
+            pygame.draw.rect(self._surf_boss_night, (255, 50, 50, 200), (0, 0, self.size, 34), 3, border_radius=4)
+        else:
+            self._surf = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+            pygame.draw.rect(self._surf, self.color, (2, 2, self.size - 4, self.size - 4), border_radius=4)
+            darker = tuple(max(0, c - 50) for c in self.color)
+            pygame.draw.rect(self._surf, darker, (0, 0, self.size, self.size), 2, border_radius=4)
+            self._surf_night = self._surf.copy()
+            pygame.draw.rect(self._surf_night, (255, 100, 100), (0, 0, self.size, self.size), 3, border_radius=4)
 
     def update(self):
         self.y += self.speed
@@ -380,25 +410,13 @@ class Obstacle:
     def draw(self, screen, offset=(0, 0), night=False):
         ox, oy = offset
         if self.otype == 'boss':
-            s = pygame.Surface((self.size, 34), pygame.SRCALPHA)
-            c = (120, 20, 40) if self.hp > 1 else (180, 20, 30)
-            pygame.draw.rect(s, c, (0, 0, self.size, 34), border_radius=4)
-            pygame.draw.rect(s, (80, 10, 30), (0, 0, self.size, 34), 2, border_radius=4)
-            for i in range(5):
-                lx = 8 + i * (self.size - 16) // 4
-                pygame.draw.circle(s, (200, 30, 50), (lx, 17), 5)
-            if night:
-                pygame.draw.rect(s, (255, 50, 50, 200), (0, 0, self.size, 34), 3, border_radius=4)
+            s = self._surf_boss if self.hp > 1 else self._surf_boss_dmg
             screen.blit(s, (int(self.x + ox), int(self.y + oy)))
+            if night:
+                screen.blit(self._surf_boss_night, (int(self.x + ox), int(self.y + oy)))
             return
-        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-        pygame.draw.rect(s, self.color, (2, 2, self.size - 4, self.size - 4), border_radius=4)
-        darker = tuple(max(0, c - 50) for c in self.color)
-        pygame.draw.rect(s, darker, (0, 0, self.size, self.size), 2, border_radius=4)
-        if night:
-            glow_color = (255, 100, 100)
-            pygame.draw.rect(s, glow_color, (0, 0, self.size, self.size), 3, border_radius=4)
-        s2 = pygame.transform.rotate(s, self.rot)
+        base = self._surf_night if night else self._surf
+        s2 = pygame.transform.rotate(base, self.rot)
         cx, cy = self.x + self.size // 2 + ox, self.y + self.size // 2 + oy
         r = s2.get_rect(center=(cx, cy))
         screen.blit(s2, r.topleft)
@@ -551,6 +569,9 @@ class Drone:
         self.size = 24
         self.hp = 1
         self.shoot_timer = random.randint(30, 90)
+        self._surf = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.circle(self._surf, (200, 40, 80), (self.size // 2, self.size // 2), self.size // 2 - 2)
+        pygame.draw.circle(self._surf, (255, 80, 120), (self.size // 2, self.size // 2), self.size // 2 - 4, 2)
 
     def update(self, enemy_bullets=None):
         self.x += self.dir * self.speed
@@ -570,15 +591,12 @@ class Drone:
     def draw(self, screen, offset=(0, 0)):
         ox, oy = offset
         cx, cy = int(self.x + ox), int(self.y + oy)
-        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-        pygame.draw.circle(s, (200, 40, 80), (self.size // 2, self.size // 2), self.size // 2 - 2)
-        pygame.draw.circle(s, (255, 80, 120), (self.size // 2, self.size // 2), self.size // 2 - 4, 2)
+        screen.blit(self._surf, (cx - self.size // 2, cy - self.size // 2))
         for i in range(3):
             angle = self.phase + i * math.pi * 2 / 3
-            px = self.size // 2 + int(math.cos(angle) * (self.size // 2 - 2))
-            py = self.size // 2 + int(math.sin(angle) * (self.size // 2 - 2))
-            pygame.draw.circle(s, (255, 60, 100), (px, py), 3)
-        screen.blit(s, (cx - self.size // 2, cy - self.size // 2))
+            px = cx + int(math.cos(angle) * (self.size // 2 - 2))
+            py = cy + int(math.sin(angle) * (self.size // 2 - 2))
+            pygame.draw.circle(screen, (255, 60, 100), (px, py), 3)
 
     def get_rect(self):
         return pygame.Rect(self.x - self.size // 2, self.y - self.size // 2, self.size, self.size)
@@ -627,23 +645,13 @@ class PowerUp:
         self.ptype = random.choice(POWERUP_TYPES)
         self.phase = 0
         self.size = 28
+        self._icon = self._make_icon()
 
-    def update(self):
-        self.y += self.speed
-        self.phase += 0.06
-
-    def draw(self, screen, offset=(0, 0)):
-        ox, oy = offset
-        cx = int(self.x + ox)
-        cy = int(self.y + oy + math.sin(self.phase) * 4)
+    def _make_icon(self):
+        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
         p = self.ptype
         colors = {'star': GOLD, 'double': SILVER, 'slow': (100, 150, 255), 'rapid': CYAN, 'magnet': PURPLE}
         c = colors.get(p, WHITE)
-        glow = int(100 + 155 * (0.5 + 0.5 * math.sin(self.phase * 2)))
-        gs = pygame.Surface((self.size + 8, self.size + 8), pygame.SRCALPHA)
-        pygame.draw.circle(gs, (c[0], c[1], c[2], glow // 3), (self.size // 2 + 4, self.size // 2 + 4), self.size // 2 + 4)
-        screen.blit(gs, (cx - self.size // 2 - 4, cy - self.size // 2 - 4))
-        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
         pygame.draw.circle(s, c, (self.size // 2, self.size // 2), self.size // 2)
         pygame.draw.circle(s, WHITE, (self.size // 2, self.size // 2), self.size // 2 - 4, 2)
         if p == 'star':
@@ -663,7 +671,23 @@ class PowerUp:
         elif p == 'magnet':
             pygame.draw.circle(s, WHITE, (self.size // 2, 10), 6)
             pygame.draw.rect(s, WHITE, (self.size // 2 - 3, 16, 6, 8))
-        screen.blit(s, (cx - self.size // 2, cy - self.size // 2))
+        return s
+
+    def update(self):
+        self.y += self.speed
+        self.phase += 0.06
+
+    def draw(self, screen, offset=(0, 0)):
+        ox, oy = offset
+        cx = int(self.x + ox)
+        cy = int(self.y + oy + math.sin(self.phase) * 4)
+        colors = {'star': GOLD, 'double': SILVER, 'slow': (100, 150, 255), 'rapid': CYAN, 'magnet': PURPLE}
+        c = colors.get(self.ptype, WHITE)
+        glow = int(100 + 155 * (0.5 + 0.5 * math.sin(self.phase * 2)))
+        gs = pygame.Surface((self.size + 8, self.size + 8), pygame.SRCALPHA)
+        pygame.draw.circle(gs, (c[0], c[1], c[2], glow // 3), (self.size // 2 + 4, self.size // 2 + 4), self.size // 2 + 4)
+        screen.blit(gs, (cx - self.size // 2 - 4, cy - self.size // 2 - 4))
+        screen.blit(self._icon, (cx - self.size // 2, cy - self.size // 2))
 
     def get_rect(self):
         return pygame.Rect(self.x - self.size // 2, self.y - self.size // 2, self.size, self.size)
@@ -679,6 +703,13 @@ class MovingObstacle:
         self.dir = random.choice([-1, 1])
         self.move_speed = random.uniform(1.0, 2.5)
         self.phase = random.uniform(0, math.pi * 2)
+        self._surf = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        c = (220, 100, 60)
+        pygame.draw.rect(self._surf, c, (2, 2, self.size - 4, self.size - 4), border_radius=4)
+        darker = (180, 70, 40)
+        pygame.draw.rect(self._surf, darker, (0, 0, self.size, self.size), 2, border_radius=4)
+        self._night_surf = self._surf.copy()
+        pygame.draw.rect(self._night_surf, (255, 150, 100, 200), (0, 0, self.size, self.size), 3, border_radius=4)
 
     def update(self):
         self.y += self.speed
@@ -690,17 +721,10 @@ class MovingObstacle:
 
     def draw(self, screen, offset=(0, 0), night=False):
         ox, oy = offset
-        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-        c = (220, 100, 60)
-        pygame.draw.rect(s, c, (2, 2, self.size - 4, self.size - 4), border_radius=4)
-        darker = (180, 70, 40)
-        pygame.draw.rect(s, darker, (0, 0, self.size, self.size), 2, border_radius=4)
-        glow = (255, 140, 80)
-        dx = int(math.sin(self.phase) * 4)
-        pygame.draw.rect(s, glow, (self.size // 2 - 1 + dx, self.size // 2 - 5, 2, 10))
-        if night:
-            pygame.draw.rect(s, (255, 150, 100, 200), (0, 0, self.size, self.size), 3, border_radius=4)
+        s = self._night_surf if night else self._surf
         screen.blit(s, (int(self.x + ox), int(self.y + oy)))
+        dx = int(math.sin(self.phase) * 4)
+        pygame.draw.rect(screen, (255, 140, 80), (int(self.x + ox) + self.size // 2 - 1 + dx, int(self.y + oy) + self.size // 2 - 5, 2, 10))
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.size, self.size)
@@ -712,19 +736,21 @@ class WallObstacle:
         self.gap_lane = random.randint(0, LANE_COUNT - 1)
         self.gap_x = self.gap_lane * LANE_WIDTH + LANE_OFFSET
         self.blocked = [(i * LANE_WIDTH + LANE_OFFSET) for i in range(LANE_COUNT) if i != self.gap_lane]
+        self._surf = pygame.Surface((LANE_WIDTH - 4, 30), pygame.SRCALPHA)
+        pygame.draw.rect(self._surf, (200, 50, 70), (0, 0, LANE_WIDTH - 4, 30), border_radius=3)
+        pygame.draw.rect(self._surf, (150, 30, 50), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
+        self._night_surf = pygame.Surface((LANE_WIDTH - 4, 30), pygame.SRCALPHA)
+        pygame.draw.rect(self._night_surf, (200, 50, 70), (0, 0, LANE_WIDTH - 4, 30), border_radius=3)
+        pygame.draw.rect(self._night_surf, (150, 30, 50), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
+        pygame.draw.rect(self._night_surf, (255, 80, 80, 200), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
 
     def update(self):
         self.y += self.speed
 
     def draw(self, screen, offset=(0, 0), night=False):
         ox, oy = offset
+        s = self._night_surf if night else self._surf
         for bx in self.blocked:
-            c = (200, 50, 70, 200)
-            s = pygame.Surface((LANE_WIDTH - 4, 30), pygame.SRCALPHA)
-            pygame.draw.rect(s, (200, 50, 70), (0, 0, LANE_WIDTH - 4, 30), border_radius=3)
-            pygame.draw.rect(s, (150, 30, 50), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
-            if night:
-                pygame.draw.rect(s, (255, 80, 80, 200), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
             screen.blit(s, (int(bx + 2 + ox), int(self.y + oy)))
 
     def is_lane_blocked(self, player_rect):
@@ -744,6 +770,14 @@ class MiniBoss:
         self.start_y = 60
         self.shoot_timer = 0
         self.reached_y = False
+        self._surf_hp = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.rect(self._surf_hp, (120, 30, 80), (2, 2, self.size - 4, self.size - 4), border_radius=6)
+        pygame.draw.rect(self._surf_hp, (80, 15, 50), (0, 0, self.size, self.size), 3, border_radius=6)
+        self._surf_hp1 = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.rect(self._surf_hp1, (200, 40, 60), (2, 2, self.size - 4, self.size - 4), border_radius=6)
+        pygame.draw.rect(self._surf_hp1, (80, 15, 50), (0, 0, self.size, self.size), 3, border_radius=6)
+        self._surf_night = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.rect(self._surf_night, (255, 80, 150, 200), (0, 0, self.size, self.size), 3, border_radius=6)
 
     def update(self, enemy_bullets=None):
         if not self.reached_y:
@@ -762,18 +796,15 @@ class MiniBoss:
     def draw(self, screen, offset=(0, 0), night=False):
         ox, oy = offset
         cx, cy = int(self.x + self.size // 2 + ox), int(self.y + self.size // 2 + oy)
-        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
-        c = (120, 30, 80) if self.hp > 1 else (200, 40, 60)
-        pygame.draw.rect(s, c, (2, 2, self.size - 4, self.size - 4), border_radius=6)
-        pygame.draw.rect(s, (80, 15, 50), (0, 0, self.size, self.size), 3, border_radius=6)
+        s = self._surf_hp if self.hp > 1 else self._surf_hp1
+        screen.blit(s, (int(self.x + ox), int(self.y + oy)))
+        if night:
+            screen.blit(self._surf_night, (int(self.x + ox), int(self.y + oy)))
         for i in range(3):
             angle = self.shoot_timer * 0.1 + i * math.pi * 2 / 3
-            px = self.size // 2 + int(math.cos(angle) * (self.size // 2 - 8))
-            py = self.size // 2 + int(math.sin(angle) * (self.size // 2 - 8))
-            pygame.draw.circle(s, (200, 50, 100), (px, py), 4)
-        if night:
-            pygame.draw.rect(s, (255, 80, 150, 200), (0, 0, self.size, self.size), 3, border_radius=6)
-        screen.blit(s, (int(self.x + ox), int(self.y + oy)))
+            px = cx + int(math.cos(angle) * (self.size // 2 - 8))
+            py = cy + int(math.sin(angle) * (self.size // 2 - 8))
+            pygame.draw.circle(screen, (200, 50, 100), (px, py), 4)
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.size, self.size)
@@ -1010,7 +1041,10 @@ async def _triki_loop():
         await triki.stopTriki()
 
 def draw_text(screen, text, size, x, y, color=WHITE, center=True, right=False, font_name="Arial"):
-    font = pygame.font.SysFont(font_name, size, bold=True)
+    key = (font_name, size)
+    if key not in _font_cache:
+        _font_cache[key] = pygame.font.SysFont(font_name, size, bold=True)
+    font = _font_cache[key]
     surf = font.render(text, True, color)
     if right:
         r = surf.get_rect(topright=(x, y))
@@ -1410,12 +1444,12 @@ def draw_flare(screen, timer):
     if timer <= 0:
         return
     alpha = int(timer * 3)
-    surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    _flare_surf.fill((0, 0, 0, 0))
     for side in range(4):
         r = [pygame.Rect(0, 0, WIDTH, 4), pygame.Rect(0, HEIGHT - 4, WIDTH, 4),
              pygame.Rect(0, 0, 4, HEIGHT), pygame.Rect(WIDTH - 4, 0, 4, HEIGHT)][side]
-        pygame.draw.rect(surf, (180, 80, 255, min(alpha, 180)), r)
-    screen.blit(surf, (0, 0))
+        pygame.draw.rect(_flare_surf, (180, 80, 255, min(alpha, 180)), r)
+    screen.blit(_flare_surf, (0, 0))
 
 def draw_challenge_hud(screen, challenges):
     if not challenges:
@@ -1434,9 +1468,8 @@ def draw_night_overlay(screen, night_active, night_timer):
     if not night_active:
         return
     alpha = min(180, int((1 - night_timer / NIGHT_DURATION) * 180))
-    surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    surf.fill((0, 0, 30, alpha))
-    screen.blit(surf, (0, 0))
+    _night_surf.fill((0, 0, 30, alpha))
+    screen.blit(_night_surf, (0, 0))
 
 def spawn_group_obstacle(obstacles, base_speed):
     count = random.randint(2, 3)
@@ -1609,12 +1642,12 @@ def game_loop(screen, upgrades):
             draw_text(screen, "STREFA PORTALU!", 36, WIDTH // 2, 60, CYAN)
             draw_text(screen, f"Czas: {portal_timer // FPS}s", 22, WIDTH // 2, 100, WHITE)
 
-            for c in coin_objs[:]:
+            kept = []
+            for c in coin_objs:
                 c.update()
                 if c.y > HEIGHT + 20:
-                    coin_objs.remove(c)
-                elif player.get_rect().colliderect(c.get_rect()):
-                    coin_objs.remove(c)
+                    continue
+                if player.get_rect().colliderect(c.get_rect()):
                     coins_collected += c.points
                     if c.special:
                         player.special_coins += 1
@@ -1633,11 +1666,13 @@ def game_loop(screen, upgrades):
                             if ch['progress'] >= ch['target']:
                                 ch['done'] = True
                     _challenges_need_save = True
+                    continue
+                kept.append(c)
+            coin_objs = kept
 
-            for p in particles[:]:
+            for p in particles:
                 p.update()
-                if not p.alive:
-                    particles.remove(p)
+            particles = [p for p in particles if p.alive]
 
             if portal_timer <= 0:
                 portal_mode = False
@@ -1663,23 +1698,21 @@ def game_loop(screen, upgrades):
                 if random.random() < 0.3:
                     snow_particles.append([random.randint(LANE_OFFSET, LANE_OFFSET + LANE_COUNT * LANE_WIDTH), -10,
                                            random.uniform(-0.3, 0.3), random.uniform(0.5, 1.5), random.randint(1, 2)])
-                for sp in snow_particles[:]:
+                for sp in snow_particles:
                     sp[0] += sp[2]
                     sp[1] += sp[3]
-                    if sp[1] > HEIGHT + 10:
-                        snow_particles.remove(sp)
+                snow_particles = [sp for sp in snow_particles if sp[1] <= HEIGHT + 10]
 
             if BIOME_EFFECTS[current_biome].get('sparks'):
                 if random.random() < 0.25:
                     sx = random.randint(LANE_OFFSET, LANE_OFFSET + LANE_COUNT * LANE_WIDTH)
                     spark_particles.append([sx, HEIGHT + 5, random.uniform(-0.8, 0.8), random.uniform(-2.0, -0.5),
                                             random.randint(5, 15)])
-                for sp in spark_particles[:]:
+                for sp in spark_particles:
                     sp[0] += sp[2]
                     sp[1] += sp[3]
                     sp[4] -= 1
-                    if sp[4] <= 0:
-                        spark_particles.remove(sp)
+                spark_particles = [sp for sp in spark_particles if sp[4] > 0]
 
             if BIOME_EFFECTS[current_biome].get('glitch'):
                 if random.random() < 0.08 and len(glitch_lines) < 5:
@@ -1687,10 +1720,9 @@ def game_loop(screen, upgrades):
                     gw = random.randint(20, WIDTH)
                     gc = random.choice([(255,40,180), (0,255,200), (100,50,255), (255,255,255)])
                     glitch_lines.append([random.randint(0, WIDTH - gw), gy, gw, 3, gc, random.randint(5, 20)])
-                for gl in glitch_lines[:]:
+                for gl in glitch_lines:
                     gl[5] -= 1
-                    if gl[5] <= 0:
-                        glitch_lines.remove(gl)
+                glitch_lines = [gl for gl in glitch_lines if gl[5] > 0]
 
             if BIOME_EFFECTS[current_biome].get('fog'):
                 pass
@@ -1980,8 +2012,6 @@ def game_loop(screen, upgrades):
                         shoot_hits += 1
                         for _ in range(5):
                             particles.append(Particle(mb.x + mb.size // 2, mb.y + mb.size // 2, (255, 80, 150), 10))
-                        status_msg = f"Mini-boss zniszczony! +{int(50 * life_mult)}"
-                        status_timer = 60
                     bullets.remove(b)
                     hit = True
                     break
@@ -2187,17 +2217,15 @@ def game_loop(screen, upgrades):
             player.dodge_streak = 0
             prev_obstacles_len = len(obstacles)
 
-        for d in drones[:]:
+        for d in drones:
             d.update(enemy_bullets)
             d.y += effective_scroll
-            if not d.alive or d.y > HEIGHT + 40:
-                drones.remove(d)
+        drones = [d for d in drones if d.alive and d.y <= HEIGHT + 40]
 
-        for t in targets[:]:
+        for t in targets:
             t.update()
             t.y += effective_scroll
-            if t.y > HEIGHT + 40:
-                targets.remove(t)
+        targets = [t for t in targets if t.y <= HEIGHT + 40]
 
         for f in forks[:]:
             f.update()
@@ -2433,25 +2461,18 @@ def game_loop(screen, upgrades):
                     s.fill((gl[4][0], gl[4][1], gl[4][2], 120))
                     screen.blit(s, (gl[0], gl[1]))
             if BIOME_EFFECTS[current_biome].get('fog'):
-                fog = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-                for fy in range(0, HEIGHT, 2):
-                    fa = int(40 * (1 - fy / HEIGHT))
-                    pygame.draw.line(fog, (40, 38, 50, fa), (0, fy), (WIDTH, fy))
-                screen.blit(fog, (0, 0))
+                screen.blit(_fog_surf, (0, 0))
 
         if transitioning:
             ta = min(255, transition_alpha * 2) if transition_alpha < 128 else max(0, 255 - (transition_alpha - 128) * 2)
-            trans = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            trans.fill((0, 0, 0, ta))
-            screen.blit(trans, (0, 0))
+            _trans_surf.fill((0, 0, 0, ta))
+            screen.blit(_trans_surf, (0, 0))
 
         draw_night_overlay(screen, night_active, night_timer % NIGHT_INTERVAL)
         draw_flare(screen, flare_timer)
 
         if active_powerup == 'slow' and powerup_timer > 0:
-            slow = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            slow.fill((50, 80, 180, 40))
-            screen.blit(slow, (0, 0))
+            screen.blit(_slow_surf, (0, 0))
         if active_powerup == 'rapid' and powerup_timer > 0:
             rapid = pygame.Surface((PLAYER_SIZE + 16, PLAYER_SIZE + 16), pygame.SRCALPHA)
             rapid.fill((0, 200, 255, 60))
