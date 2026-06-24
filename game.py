@@ -1786,19 +1786,19 @@ def game_loop(screen, upgrades):
         else:
             night_active = False
 
-        scroll = min(SCROLL_SPEED_BASE + score // 500, 14)
+        scroll = min(SCROLL_SPEED_BASE + score // 800, 12)
 
-        spawn_interval = max(20, 70 - int(scroll * 4))
-        coin_interval = max(12, 35 - int(scroll * 2))
+        spawn_interval = max(25, 80 - int(scroll * 3))
+        coin_interval = max(15, 40 - int(scroll * 2))
 
-        new_zone = (score >= 2000) + (score >= 5000) + (score >= 10000)
+        new_zone = (score >= 3000) + (score >= 7000) + (score >= 12000)
         if new_zone > current_zone:
             current_zone = new_zone
             zone_labels = ["", "ŚREDNIA", "TRUDNA", "SZALONA"]
             status_msg = f"STREFA {current_zone} – {zone_labels[current_zone]}"
             status_timer = 120
 
-        wave_check = score // 1000
+        wave_check = score // 1500
         if wave_check > last_wave:
             if wave_clear and last_wave > 0:
                 score += 100
@@ -1807,10 +1807,10 @@ def game_loop(screen, upgrades):
                 status_timer = 60
             wave_clear = True
             last_wave = wave_check
-            wave_cooldown = 90
+            wave_cooldown = 120
             status_msg = f"FALA {wave_check}!"
             status_timer = 90
-            for _ in range(random.randint(3, 5)):
+            for _ in range(random.randint(2, 4)):
                 ox = random.uniform(LANE_OFFSET + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 30)
                 obstacles.append(Obstacle(ox, scroll, random.choice(['small', 'normal'])))
             spawn_tick = 0
@@ -1830,14 +1830,14 @@ def game_loop(screen, upgrades):
                 transition_alpha = 255
                 transitioning = False
 
-        spawn_chance = min(0.85, 0.35 + scroll * 0.035)
+        spawn_chance = min(0.80, 0.30 + scroll * 0.030)
 
         if not boss_active and spawn_tick > spawn_interval and random.random() < spawn_chance and wave_cooldown == 0:
             r = random.random()
             area_left = LANE_OFFSET + 10
             area_right = LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 10
-            group_chance = min(0.4, 0.1 + scroll * 0.02)
-            big_chance = min(0.3, 0.1 + scroll * 0.015)
+            group_chance = min(0.35, 0.05 + scroll * 0.018)
+            big_chance = min(0.25, 0.08 + scroll * 0.012)
             if r < group_chance:
                 spawn_group_obstacle(obstacles, scroll)
             elif r < group_chance + big_chance:
@@ -1850,7 +1850,7 @@ def game_loop(screen, upgrades):
                 obstacles.append(Obstacle(x, scroll, otype))
             spawn_tick = 0
 
-        if not boss_active and spawn_tick > spawn_interval and random.random() < 0.03 and scroll > 6 and wave_cooldown == 0:
+        if not boss_active and spawn_tick > spawn_interval and random.random() < 0.03 and scroll > 8 and wave_cooldown == 0:
             sx = random.uniform(LANE_OFFSET + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - Obstacle.TYPES['shield']['size'] - 10)
             obstacles.append(Obstacle(sx, scroll, 'shield'))
 
@@ -1883,7 +1883,7 @@ def game_loop(screen, upgrades):
                     coin_objs.append(CoinObj(x, scroll, 'normal'))
             coin_tick = 0
 
-        if scroll > 8 and random.random() < 0.015 and not portal_mode:
+        if scroll > 10 and random.random() < 0.015 and not portal_mode:
             edge = random.choice([0, 1])
             cx = LANE_OFFSET + (0 if edge == 0 else LANE_COUNT * LANE_WIDTH - COIN_RADIUS * 2)
             coin_objs.append(CoinObj(cx, scroll, 'risk'))
