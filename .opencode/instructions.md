@@ -83,6 +83,7 @@
 
 - **Nigdy nie zgaduj – zawsze pytaj.** Jeśli nie wiesz, którą opcję wybrać, nie znasz intencji użytkownika, brakuje Ci informacji do podjęcia decyzji – zadaj pytanie. Nie domyślaj się, nie zakładaj.
 - **Aktualizuj dokumentację przy zmianach.** Gdy modyfikujesz istniejącą mechanikę, funkcję lub klasę, zaktualizuj odpowiedni plik w `docs/`. Gdy dodajesz nową funkcjonalność wartą udokumentowania, utwórz nowy plik w `docs/` i dodaj go do spisu treści w `docs/README.md`.
+- **Plany w `plans/`.** `plans/` zawiera plany nowych funkcji – każdy plan w osobnym pliku. Zadania oznaczaj `[_]` (niewykonane) i po realizacji `[x]`. Gdy uznasz, że zadanie jest na tyle duże, że wymaga planu – zaproponuj nowy plik w `plans/` i dodaj go do `plans/README.md`.
 
 ## Ważne szczegóły
 - Sterowanie w menu: potrząsanie kontrolerem = następna opcja, przycisk = akceptuj
