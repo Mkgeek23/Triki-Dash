@@ -43,6 +43,48 @@ ROAD_LINE = (70, 70, 80)
 CYAN = (80, 220, 255)
 PINK = (255, 100, 200)
 
+BIOME_INTERVAL = 2000
+BIOMES = [
+    {
+        'name': 'Kosmos', 'bg': [(8,4,22),(12,6,32),(20,10,40),(30,15,50),(20,10,35),(8,4,22)],
+        'road': (42,42,50), 'edge': (60,30,120), 'line': (0,180,255),
+        'lanebase': (0,60,80), 'dash': (0,180,255), 'accent': (180,80,255),
+        'glow': (60,30,120), 'spdline': (0,180,255),
+    },
+    {
+        'name': 'Lód', 'bg': [(10,20,40),(15,30,60),(25,45,80),(20,40,70),(10,20,45)],
+        'road': (50,60,80), 'edge': (30,60,120), 'line': (100,200,255),
+        'lanebase': (40,100,140), 'dash': (150,220,255), 'accent': (200,230,255),
+        'glow': (40,90,160), 'spdline': (100,200,255),
+    },
+    {
+        'name': 'Wulkan', 'bg': [(25,4,4),(35,8,6),(45,12,8),(55,18,10),(35,10,6),(25,4,4)],
+        'road': (40,10,8), 'edge': (120,30,20), 'line': (180,60,20),
+        'lanebase': (60,20,10), 'dash': (220,100,30), 'accent': (255,150,50),
+        'glow': (80,20,10), 'spdline': (255,100,30),
+    },
+    {
+        'name': 'Mgła', 'bg': [(30,28,35),(35,33,40),(40,38,45),(35,33,40),(30,28,35)],
+        'road': (35,33,40), 'edge': (40,38,50), 'line': (60,58,70),
+        'lanebase': (45,43,55), 'dash': (70,68,80), 'accent': (130,120,160),
+        'glow': (35,33,45), 'spdline': (70,68,80),
+    },
+    {
+        'name': 'Cyber', 'bg': [(5,3,15),(8,5,25),(10,8,30),(8,5,25),(5,3,15)],
+        'road': (10,8,25), 'edge': (80,20,80), 'line': (255,40,180),
+        'lanebase': (40,10,60), 'dash': (0,255,200), 'accent': (0,255,200),
+        'glow': (40,10,50), 'spdline': (0,255,200),
+    },
+]
+
+BIOME_EFFECTS = {
+    0: {}, # kosmos – brak dodatkowych efektów
+    1: {'snow': True},
+    2: {'sparks': True},
+    3: {'fog': True},
+    4: {'glitch': True},
+}
+
 triki_status_queue = queue.Queue()
 triki_analog = 0.0
 triki_connected = False
@@ -677,7 +719,8 @@ class Road:
             b = int(bright * (0.6 + 0.4 * blink))
             pygame.draw.circle(screen, (b, b, b), (sx, sy), r)
 
-    def draw(self, screen, speed=4, tod=0.0, night=False, portal_mode=False):
+    def draw(self, screen, speed=4, tod=0.0, night=False, portal_mode=False, biome=0):
+        bp = BIOMES[biome]
         if portal_mode:
             bg = (10, 5, 30)
             screen.fill(bg)
@@ -692,9 +735,7 @@ class Road:
                 pygame.draw.line(screen, lc, (lx, 0), (lx, HEIGHT), 2)
             return
 
-        bg_colors = [
-            (8, 4, 22), (12, 6, 32), (20, 10, 40), (30, 15, 50), (20, 10, 35), (8, 4, 22),
-        ]
+        bg_colors = bp['bg']
         idx = int(tod) % (len(bg_colors) - 1)
         t = tod - int(tod)
         c1, c2 = bg_colors[idx], bg_colors[idx + 1]
@@ -704,44 +745,52 @@ class Road:
         if night:
             bg = (max(0, bg[0] - 20), max(0, bg[1] - 20), max(0, bg[2] - 20))
         screen.fill(bg)
-        self._draw_starfield(screen, speed * 10)
+        if biome == 0:
+            self._draw_starfield(screen, speed * 10)
 
-        glow = (60, 30, 120)
+        glow = bp['glow']
         for g in range(3, 0, -1):
-            glow_alpha = int(15 / (g + 1))
             r = max(0, glow[0] - g * 8)
             gv = max(0, glow[1] - g * 5)
             b = max(0, glow[2] - g * 15)
             pygame.draw.rect(screen, (r, gv, b), (LANE_OFFSET - g, 0, LANE_COUNT * LANE_WIDTH + g * 2, HEIGHT), g)
 
-        road_bg = (max(0, bg[0] - 3), max(0, bg[1] - 3), max(0, bg[2] - 3))
+        road_bg = bp['road']
         pygame.draw.rect(screen, road_bg, (LANE_OFFSET, 0, LANE_COUNT * LANE_WIDTH, HEIGHT))
 
         for i in range(LANE_COUNT + 1):
             lx = i * LANE_WIDTH + LANE_OFFSET
+            edge = i == 0 or i == LANE_COUNT
             for g in (3, 1):
-                c = (min(20, 255), min(g * 60, 255), min(g * 80 + 40, 255)) if i == 0 or i == LANE_COUNT else (0, min(g * 40, 255), min(g * 60, 255))
+                if edge:
+                    c = bp['edge']
+                    c = (max(0, c[0] - g * 15), max(0, c[1] - g * 10), min(255, c[2] + g * 20))
+                else:
+                    c = bp['line']
+                    c = (max(0, c[0] - g * 20), max(0, c[1] - g * 15), max(0, c[2] - g * 10))
                 pygame.draw.line(screen, c, (lx, 0), (lx, HEIGHT), g if g > 1 else 1)
 
-        neon = (0, 180, 255)
+        neon = bp['dash']
         for y in range(-80 + int(self.offset), HEIGHT, 80):
             for i in range(LANE_COUNT):
                 lx = i * LANE_WIDTH + LANE_WIDTH // 2 + LANE_OFFSET
                 for g in (5, 3, 1):
                     a = max(0, 100 - g * 20)
-                    c = (0, a, min(255, a + 100))
+                    c = (min(255, max(0, neon[0] - g * 30)), min(255, max(0, neon[1] - g * 30)), min(255, max(0, neon[2] - g * 30)))
                     if g < 3:
                         pygame.draw.line(screen, c, (lx, y + 4 - g), (lx, y + 36 + g), g)
-                pygame.draw.line(screen, (180, 255, 255), (lx, y + 4), (lx, y + 36), 1)
+                pygame.draw.line(screen, bp['accent'], (lx, y + 4), (lx, y + 36), 1)
 
         sl = max(0, int(speed - 3))
         if sl > 0:
+            spc = bp['spdline']
             for side_x in (LANE_OFFSET - 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH + 4):
                 for j in range(3):
                     ly = (j * 200 + int(self.offset * 1.5)) % (HEIGHT + 100) - 50
                     llen = 15 + sl * 3
                     bright = min(200, 80 + sl * 20)
-                    pygame.draw.line(screen, (bright // 2, bright, bright), (side_x, ly), (side_x, ly + llen), 2)
+                    c = (int(spc[0] * bright / 255), int(spc[1] * bright / 255), int(spc[2] * bright / 255))
+                    pygame.draw.line(screen, c, (side_x, ly), (side_x, ly + llen), 2)
 
 def triki_thread():
     asyncio.run(_triki_loop())
@@ -1285,6 +1334,14 @@ def game_loop(screen, upgrades):
     shoot_hits = 0
     drones_destroyed = 0
 
+    current_biome = 0
+    biome_progress = 0
+    transition_alpha = 0
+    transitioning = False
+    snow_particles = []
+    spark_particles = []
+    glitch_lines = []
+
     boost_dur = BOOST_DURATION + sprint_bonus
 
     while triki_running:
@@ -1326,7 +1383,7 @@ def game_loop(screen, upgrades):
                             s_shoot.play()
 
         if paused:
-            road.draw(screen, scroll)
+            road.draw(screen, scroll, biome=current_biome)
             player.draw(screen, total_coins=total_coins)
             for o in obstacles:
                 o.draw(screen)
@@ -1339,7 +1396,7 @@ def game_loop(screen, upgrades):
 
         if portal_mode:
             portal_timer -= 1
-            road.draw(screen, scroll, portal_mode=True)
+            road.draw(screen, scroll, portal_mode=True, biome=current_biome)
             player.draw(screen, total_coins=total_coins)
             for c in coin_objs:
                 c.draw(screen)
@@ -1389,20 +1446,55 @@ def game_loop(screen, upgrades):
                 status_msg = "Powrót do gry!"
                 status_timer = 60
                 s_portal.play()
-
-            player.update(triki_analog if triki_connected else None, total_coins)
-            if player.boost_timer > 0:
-                player.boost_timer -= 1
-
-            draw_text(screen, f"Dystans: {score}", 22, 110, 25, WHITE, center=False)
-            draw_text(screen, f"Monety: {coins_collected}", 22, 110, 55, YELLOW, center=False)
-            draw_challenge_hud(screen, challenges)
-            pygame.display.flip()
-            continue
+                player.update(triki_analog if triki_connected else None, total_coins)
+                if player.boost_timer > 0:
+                    player.boost_timer -= 1
+                draw_text(screen, f"Dystans: {score}", 22, 110, 25, WHITE, center=False)
+                draw_text(screen, f"Monety: {coins_collected}", 22, 110, 55, YELLOW, center=False)
+                draw_challenge_hud(screen, challenges)
+                pygame.display.flip()
+                continue
 
         spawn_tick += 1
         coin_tick += 1
         diff_tick += 1
+
+        if not portal_mode:
+            if BIOME_EFFECTS[current_biome].get('snow'):
+                if random.random() < 0.3:
+                    snow_particles.append([random.randint(LANE_OFFSET, LANE_OFFSET + LANE_COUNT * LANE_WIDTH), -10,
+                                           random.uniform(-0.3, 0.3), random.uniform(0.5, 1.5), random.randint(1, 2)])
+                for sp in snow_particles[:]:
+                    sp[0] += sp[2]
+                    sp[1] += sp[3]
+                    if sp[1] > HEIGHT + 10:
+                        snow_particles.remove(sp)
+
+            if BIOME_EFFECTS[current_biome].get('sparks'):
+                if random.random() < 0.25:
+                    sx = random.randint(LANE_OFFSET, LANE_OFFSET + LANE_COUNT * LANE_WIDTH)
+                    spark_particles.append([sx, HEIGHT + 5, random.uniform(-0.8, 0.8), random.uniform(-2.0, -0.5),
+                                            random.randint(5, 15)])
+                for sp in spark_particles[:]:
+                    sp[0] += sp[2]
+                    sp[1] += sp[3]
+                    sp[4] -= 1
+                    if sp[4] <= 0:
+                        spark_particles.remove(sp)
+
+            if BIOME_EFFECTS[current_biome].get('glitch'):
+                if random.random() < 0.08 and len(glitch_lines) < 5:
+                    gy = random.randint(0, HEIGHT)
+                    gw = random.randint(20, WIDTH)
+                    gc = random.choice([(255,40,180), (0,255,200), (100,50,255), (255,255,255)])
+                    glitch_lines.append([random.randint(0, WIDTH - gw), gy, gw, 3, gc, random.randint(5, 20)])
+                for gl in glitch_lines[:]:
+                    gl[5] -= 1
+                    if gl[5] <= 0:
+                        glitch_lines.remove(gl)
+
+            if BIOME_EFFECTS[current_biome].get('fog'):
+                pass
 
         if triki_button and not triki_connected:
             triki_button = False
@@ -1465,7 +1557,7 @@ def game_loop(screen, upgrades):
         spawn_interval = max(20, 70 - int(scroll * 4))
         coin_interval = max(12, 35 - int(scroll * 2))
 
-        new_zone = (score >= 10000) * 3 + (score >= 5000) * 2 + (score >= 2000) * 1
+        new_zone = (score >= 2000) + (score >= 5000) + (score >= 10000)
         if new_zone > current_zone:
             current_zone = new_zone
             zone_labels = ["", "ŚREDNIA", "TRUDNA", "SZALONA"]
@@ -1485,6 +1577,18 @@ def game_loop(screen, upgrades):
 
         if wave_cooldown > 0:
             wave_cooldown -= 1
+
+        new_biome = score // BIOME_INTERVAL
+        if new_biome > current_biome:
+            current_biome = new_biome % len(BIOMES)
+            transitioning = True
+            transition_alpha = 0
+
+        if transitioning:
+            transition_alpha += 5
+            if transition_alpha >= 255:
+                transition_alpha = 255
+                transitioning = False
 
         spawn_chance = min(0.85, 0.35 + scroll * 0.035)
 
@@ -1916,7 +2020,7 @@ def game_loop(screen, upgrades):
             shake_offset = (sx, sy)
 
         tod = (diff_tick / 10800) % 6
-        road.draw(screen, effective_scroll, tod, night_active)
+        road.draw(screen, effective_scroll, tod, night_active, biome=current_biome)
         if not portal_mode:
             player.draw(screen, shake_offset, total_coins)
             for o in obstacles:
@@ -1941,6 +2045,33 @@ def game_loop(screen, upgrades):
                 b.draw(screen, shake_offset)
         for p in particles:
             p.draw(screen, shake_offset)
+
+        if not portal_mode:
+            if BIOME_EFFECTS[current_biome].get('snow'):
+                for sp in snow_particles:
+                    c = (200, 220, 255, 180)
+                    pygame.draw.circle(screen, (c[0], c[1], c[2]), (int(sp[0]), int(sp[1])), sp[4])
+            if BIOME_EFFECTS[current_biome].get('sparks'):
+                for sp in spark_particles:
+                    alpha = min(255, sp[4] * 18)
+                    pygame.draw.circle(screen, (min(255, 200 + alpha), min(255, 100 + alpha // 2), alpha), (int(sp[0]), int(sp[1])), 2)
+            if BIOME_EFFECTS[current_biome].get('glitch'):
+                for gl in glitch_lines:
+                    s = pygame.Surface((gl[3], gl[4]), pygame.SRCALPHA)
+                    s.fill((gl[5][0], gl[5][1], gl[5][2], 120))
+                    screen.blit(s, (gl[0], gl[1]))
+            if BIOME_EFFECTS[current_biome].get('fog'):
+                fog = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                for fy in range(0, HEIGHT, 2):
+                    fa = int(40 * (1 - fy / HEIGHT))
+                    pygame.draw.line(fog, (40, 38, 50, fa), (0, fy), (WIDTH, fy))
+                screen.blit(fog, (0, 0))
+
+        if transitioning:
+            ta = min(255, transition_alpha * 2) if transition_alpha < 128 else max(0, 255 - (transition_alpha - 128) * 2)
+            trans = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            trans.fill((0, 0, 0, ta))
+            screen.blit(trans, (0, 0))
 
         draw_night_overlay(screen, night_active, night_timer % NIGHT_INTERVAL)
         draw_flare(screen, flare_timer)

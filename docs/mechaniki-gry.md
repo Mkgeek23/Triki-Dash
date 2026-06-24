@@ -131,6 +131,34 @@ Przy wejściu do nowej strefy: komunikat "STREFA X – NAZWA" (120 ticków).
 - Po zniszczeniu drona: gracz dostaje tarczę
 - Pociski wroga (EnemyBullet): lecą w dół, gracz traci życie/tarczę przy kolizji
 
+## Biomy
+
+Co 2000 dystansu zmienia się biom otoczenia. Zmiana: fade do czerni i wyjście w nowej palecie.
+
+| # | Nazwa | Kolory | Efekt | 
+|---|-------|--------|-------|
+| 0 | Kosmos | Fiolet, neonowy cyjan | Gwiazdy (domyślny) |
+| 1 | Lód | Błękit, biel, jasnoniebieski | Płatki śniegu |
+| 2 | Wulkan | Czerwień, pomarańcz, czerń | Iskry unoszące się do góry |
+| 3 | Mgła | Szarości, blade fiolety | Warstwa mgły z gradientem |
+| 4 | Cyber | Neonowy róż, cyjan, czerń | Glitch – losowe kolorowe linie |
+
+Każdy biom ma własną paletę kolorów w `BIOMES` (game.py ~linia 47):
+- `bg` – kolory tła (gradient)
+- `road` – kolor drogi
+- `edge` – kolor krawędzi
+- `line` – kolor linii pasów
+- `dash` – kolor przerywanych linii
+- `accent` – kolor akcentów
+- `glow` – kolor poświaty
+- `spdline` – kolor speed line'ów
+
+Efekty wizualne definiowane w `BIOME_EFFECTS`:
+- `snow` – białe cząsteczki spadające po przekątnej (Lód)
+- `sparks` – pomarańczowe cząsteczki unoszące się do góry (Wulkan)
+- `fog` – półprzezroczysty gradient na całym ekranie (Mgła)
+- `glitch` – losowe kolorowe linie poziome (Cyber)
+
 ## Tarcza (shield)
 
 - Pojawia się jako Target na drodze

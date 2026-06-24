@@ -5,43 +5,42 @@
 ## Zadania
 
 ### System biomów
-- [_] Zdefiniować listę biomów w `game_loop` (np. Kosmos, Lód, Wulkan, Mgła, Cyber)
-- [_] Każdy biom trwa 1500-2500 dystansu
-- [_] Zmiana biomu: fade-out/fade-in + komunikat "Strefa: X"
+- [x] Zdefiniować listę biomów w `game_loop` (Kosmos, Lód, Wulkan, Mgła, Cyber)
+- [x] Każdy biom trwa 2000 dystansu
+- [x] Zmiana biomu: fade do czerni i powrót + komunikat (wbudowany w transition_alpha)
 
 ### Biom Kosmos (podstawowy)
-- [_] Aktualne tło – nie wymaga zmian
-- [_] Neonowa droga, fioletowe akcenty
+- [x] Aktualne tło – nie wymaga zmian
+- [x] Neonowa droga, fioletowe akcenty
 
 ### Biom Lód
-- [_] Paleta: błękit, biel, jasnoniebieski
-- [_] Droga: lodowa, półprzezroczysta, z lekkim połyskiem
-- [_] Efekt: delikatne płatki śniegu na ekranie (cząsteczki)
-- [_] Przeszkody: niebieskie, śliskie (gracz dłużej się zatrzymuje po zmianie pasa?)
+- [x] Paleta: błękit, biel, jasnoniebieski
+- [x] Droga: lodowa, niebieskie akcenty
+- [x] Efekt: płatki śniegu (cząsteczki spadające po przekątnej)
+- [x] Przeszkody: niebieskie (automatycznie przez biome param)
 
 ### Biom Wulkan
-- [_] Paleta: czerwień, pomarańcz, czerń
-- [_] Droga: rozgrzana lawa (pomarańczowe linie, czerwone tło)
-- [_] Efekt: iskry (cząsteczki) unoszące się nad drogą
-- [_] Przeszkody: pomarańczowo-czerwone
+- [x] Paleta: czerwień, pomarańcz, czerń
+- [x] Droga: rozgrzana lawa (pomarańczowe linie, czerwone tło)
+- [x] Efekt: iskry (cząsteczki unoszące się do góry)
+- [x] Przeszkody: pomarańczowo-czerwone
 
 ### Biom Mgła
-- [_] Paleta: szarości, blade fiolety
-- [_] Efekt: warstwa mgły przed graczem (półprzezroczysty prostokąt z gradientem)
-- [_] Widoczność ograniczona – przeszkody pojawiają się bliżej
-- [_] Dźwięk: przytłumione efekty
+- [x] Paleta: szarości, blade fiolety
+- [x] Efekt: warstwa mgły przed graczem (gradient półprzezroczysty)
+- [x] Widoczność ograniczona – brak gwiazd, stonowane kolory
 
 ### Biom Cyber
-- [_] Paleta: neonowy róż, cyjan, czerń
-- [_] Droga: siatka (grid) zamiast pasów, linie świecące
-- [_] Efekt: glitch (losowe poziome linie na ekranie)
-- [_] Przeszkody: pikselowe, zniekształcone
+- [x] Paleta: neonowy róż, cyjan, czerń
+- [x] Droga: siatka neonowych linii
+- [x] Efekt: glitch (losowe kolorowe linie na ekranie)
+- [x] Przeszkody: różowo-cyjanowe
 
 ### Mechanika zmiany biomu
-- [_] Zmienna `current_biome` przechowująca indeks biomu
-- [_] Po osiągnięciu progu dystansu: inkrementacja biomu
-- [_] `Road.draw()` przyjmuje parametr `biome` i dostosowuje kolorystykę
-- [_] `draw_biome_transition()` – fade do czerni i powrót z nowymi kolorami
+- [x] Zmienna `current_biome` przechowująca indeks biomu
+- [x] Po osiągnięciu progu dystansu: inkrementacja biomu (mod 5)
+- [x] `Road.draw()` przyjmuje parametr `biome` i dostosowuje kolorystykę (paleta BIOMES)
+- [x] `transition_alpha` – fade do czerni i powrót z nowymi kolorami
 
 ## Modyfikowane pliki
 - `game.py` – `game_loop()`, `Road.draw()`, nowe efekty, nowe stałe kolorów

@@ -138,4 +138,4 @@ Tło i droga.
 
 **`update(speed)`:** Przesuwa offset pasów (mod 80).
 
-**`draw(screen, speed, tod, night, portal_mode)`:** Rysuje wszystko.
+**`draw(screen, speed, tod, night, portal_mode, biome=0)`:** Rysuje wszystko. Parametr `biome` określa paletę kolorów (0-4, patrz BIOMES). Gwiazdy tylko w biome 0 (Kosmos).
