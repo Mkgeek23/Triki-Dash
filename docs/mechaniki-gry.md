@@ -102,11 +102,31 @@ Przy wejściu do nowej strefy: komunikat "STREFA X – NAZWA" (120 ticków).
 
 ## Combo i mnożnik
 
-- Każde zestrzelenie/przeszkoda zwiększa combo
-- Co 5 combo: mnożnik punktów +1, flare efekt
-- Próg zmiany mnożnika: 0, 5, 10, 15, 20... combo
-- Maksymalny mnożnik: 10
+- Każde zestrzelenie/przeszkoda/moneta/zmiana pasa zwiększa `player.combo`
+- Mnożnik punktów: `min(int(combo * 0.1) + 1, 15)` (progresywny, max 15x)
+- Combo reset: natychmiast po kolizji (przeszkoda, pocisk wroga)
+- Co 10 combo bez resetu: gracz dostaje tarczę (shield)
 - Pasek combo na dole ekranu
+
+## Łańcuchy monet (CoinChain)
+
+- 5-8 monet pojawiających się w jednym pionowym rzędzie na losowym pasie
+- 20% szansa zamiast zwykłej monety
+- Połączone złotą linią
+- Bonus za zebranie wszystkich: +50 punktów + flare efekt + cząsteczki
+
+## Premia za szybki slalom
+
+- Każda zmiana pasa (strzałki) rejestruje `diff_tick`
+- Jeśli kolejna zmiana w ciągu < 30 ticków (< 500ms): bonus
+- Bonus za serię: `min(slalom_count, 5) * 5` (max +25 za serię 5)
+- Slalom_count resetuje się po przerwie > 30 ticków
+
+## Perfect clear (fala bez szwanku)
+
+- `wave_clear = True` na początku każdej fali
+- Ustawiane na `False` przy każdej kolizji z przeszkodą/wrogiem
+- Jeśli fala kończy się z `wave_clear = True`: +100 punktów + flare efekt
 
 ## Sprint (boost)
 

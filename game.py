@@ -415,6 +415,7 @@ class CoinObj:
             self.dark = (200, 180, 0)
             self.points = 1
             self.special = False
+        self.chain_id = -1
 
     def update(self):
         self.y += self.speed + abs(self.vx) * 0.3
@@ -1342,6 +1343,12 @@ def game_loop(screen, upgrades):
     spark_particles = []
     glitch_lines = []
 
+    chain_groups = {}
+    next_chain_id = 1
+    last_lane_change_tick = 0
+    slalom_count = 0
+    wave_clear = True
+
     boost_dur = BOOST_DURATION + sprint_bonus
 
     while triki_running:
@@ -1370,8 +1377,24 @@ def game_loop(screen, upgrades):
                 if not paused:
                     if e.key == pygame.K_LEFT or e.key == pygame.K_a:
                         player.move_left()
+                        player.combo += 1
+                        if diff_tick - last_lane_change_tick < 30:
+                            slalom_count += 1
+                            bonus = min(slalom_count, 5) * 5
+                            score += bonus
+                            status_msg = f"Slalom! +{bonus}"
+                            status_timer = 30
+                        last_lane_change_tick = diff_tick
                     if e.key == pygame.K_RIGHT or e.key == pygame.K_d:
                         player.move_right()
+                        player.combo += 1
+                        if diff_tick - last_lane_change_tick < 30:
+                            slalom_count += 1
+                            bonus = min(slalom_count, 5) * 5
+                            score += bonus
+                            status_msg = f"Slalom! +{bonus}"
+                            status_timer = 30
+                        last_lane_change_tick = diff_tick
                     if e.key == pygame.K_ESCAPE:
                         triki_running = False
                         return None, None, None, None
@@ -1566,6 +1589,12 @@ def game_loop(screen, upgrades):
 
         wave_check = score // 1000
         if wave_check > last_wave:
+            if wave_clear and last_wave > 0:
+                score += 100
+                flare_timer = 30
+                status_msg = "Fala bez szwanku! +100"
+                status_timer = 60
+            wave_clear = True
             last_wave = wave_check
             wave_cooldown = 90
             status_msg = f"FALA {wave_check}!"
@@ -1623,7 +1652,20 @@ def game_loop(screen, upgrades):
             elif r2 < gold_chance + silver_chance:
                 coin_objs.append(CoinObj(x, scroll, 'silver'))
             else:
-                coin_objs.append(CoinObj(x, scroll, 'normal'))
+                if random.random() < 0.2 and not portal_mode:
+                    lane_idx = random.randint(0, LANE_COUNT - 1)
+                    cx = LANE_OFFSET + lane_idx * LANE_WIDTH + LANE_WIDTH // 2
+                    chain_len = random.randint(5, 8)
+                    cid = next_chain_id
+                    next_chain_id += 1
+                    for i in range(chain_len):
+                        coin = CoinObj(cx, scroll, 'normal')
+                        coin.y = -20 - i * 35
+                        coin.chain_id = cid
+                        coin_objs.append(coin)
+                    chain_groups[cid] = {'total': chain_len, 'collected': 0, 'x': cx}
+                else:
+                    coin_objs.append(CoinObj(x, scroll, 'normal'))
             coin_tick = 0
 
         if spawn_tick > spawn_interval and random.random() < 0.08 and not boss_active and not portal_mode:
@@ -1693,6 +1735,7 @@ def game_loop(screen, upgrades):
                     elif o.otype != 'boss':
                         obstacles.remove(o)
                         score += 5
+                        player.combo += 1
                         shoot_hits += 1
                         particles.append(Particle(o.x + o.size // 2, o.y + o.size // 2, CYAN, 6))
                     bullets.remove(b)
@@ -1705,6 +1748,7 @@ def game_loop(screen, upgrades):
                     drones.remove(d)
                     drones_destroyed += 1
                     score += 15
+                    player.combo += 2
                     for _ in range(4):
                         particles.append(Particle(d.x, d.y, (255, 60, 100), 6))
                     bullets.remove(b)
@@ -1716,6 +1760,7 @@ def game_loop(screen, upgrades):
                 if b.get_rect().colliderect(m.get_rect()):
                     moving_obstacles.remove(m)
                     score += 10
+                    player.combo += 1
                     shoot_hits += 1
                     particles.append(Particle(m.x + m.size // 2, m.y + m.size // 2, (220, 100, 60), 6))
                     bullets.remove(b)
@@ -1730,6 +1775,7 @@ def game_loop(screen, upgrades):
                     if mb.hp <= 0:
                         mini_bosses.remove(mb)
                         score += 50
+                        player.combo += 3
                         shoot_hits += 1
                         for _ in range(5):
                             particles.append(Particle(mb.x + mb.size // 2, mb.y + mb.size // 2, (255, 80, 150), 10))
@@ -1780,6 +1826,7 @@ def game_loop(screen, upgrades):
                         player.lives -= 1
                         player.invincible = 90
                         player.combo = 0
+                        wave_clear = False
                         shake_timer = 10
                         shake_intensity = 8
                         s_hit.play()
@@ -1951,6 +1998,17 @@ def game_loop(screen, upgrades):
             elif player.get_rect().colliderect(c.get_rect()):
                 coin_objs.remove(c)
                 coins_collected += c.points
+                if c.chain_id > -1:
+                    g = chain_groups.get(c.chain_id)
+                    if g:
+                        g['collected'] += 1
+                        if g['collected'] >= g['total']:
+                            score += 50
+                            status_msg = "Łańcuch monet! +50"
+                            status_timer = 60
+                            flare_timer = 30
+                            for _ in range(6):
+                                particles.append(Particle(g['x'], c.y, GOLD, 8))
                 if c.special:
                     player.special_coins += 1
                     for ch in challenges['challenges']:
@@ -1963,7 +2021,7 @@ def game_loop(screen, upgrades):
                     player.reload(1)
                 save_total_coins(total_coins)
                 pt = 50 * c.points
-                multiplier = min(coins_collected // 5 + 1, 10)
+                multiplier = min(int(player.combo * 0.1) + 1, 15)
                 if multiplier != last_mult and multiplier > 1:
                     flare_timer = 20
                     last_mult = multiplier
@@ -2027,6 +2085,22 @@ def game_loop(screen, upgrades):
                 o.draw(screen, shake_offset, night_active)
             for c in coin_objs:
                 c.draw(screen, shake_offset)
+            chains_drawn = {}
+            for c in coin_objs:
+                if c.chain_id > -1:
+                    cid = c.chain_id
+                    if cid not in chains_drawn:
+                        chains_drawn[cid] = []
+                    chains_drawn[cid].append((c.x, c.y + math.sin(c.phase) * 3))
+            for cid, pts in chains_drawn.items():
+                if len(pts) < 2:
+                    continue
+                pts.sort(key=lambda p: p[1])
+                for i in range(len(pts) - 1):
+                    x1, y1 = int(pts[i][0] + shake_offset[0]), int(pts[i][1] + shake_offset[1])
+                    x2, y2 = int(pts[i+1][0] + shake_offset[0]), int(pts[i+1][1] + shake_offset[1])
+                    pygame.draw.line(screen, (255, 220, 50, 100), (x1, y1), (x2, y2), 2)
+                    pygame.draw.line(screen, (200, 180, 0, 60), (x1, y1), (x2, y2), 1)
             for p in portals:
                 p.draw(screen, shake_offset)
             for d in drones:
@@ -2076,7 +2150,7 @@ def game_loop(screen, upgrades):
         draw_night_overlay(screen, night_active, night_timer % NIGHT_INTERVAL)
         draw_flare(screen, flare_timer)
 
-        mult = min(coins_collected // 5 + 1, 10)
+        mult = min(int(player.combo * 0.1) + 1, 15)
         mult_text = f"x{mult}" if mult > 1 else ""
         draw_text(screen, f"Dystans: {score}", 22, 110, 25, WHITE, center=False)
         draw_text(screen, f"Monety: {coins_collected} {mult_text}", 22, 110, 55, YELLOW, center=False)
