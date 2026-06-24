@@ -1131,6 +1131,9 @@ def game_loop(screen, upgrades):
     last_boss_score = 0
     last_portal_score = 0
     boss_active = False
+    last_wave = 0
+    wave_cooldown = 0
+    current_zone = 0
     portal_mode = False
     portal_timer = 0
     flare_timer = 0
@@ -1320,36 +1323,63 @@ def game_loop(screen, upgrades):
         else:
             night_active = False
 
-        if diff_tick % 600 == 0 and scroll < 10:
-            scroll += 0.3
+        scroll = min(SCROLL_SPEED_BASE + score // 500, 14)
 
-        spawn_interval = max(25, 70 - int(scroll * 4))
+        spawn_interval = max(20, 70 - int(scroll * 4))
         coin_interval = max(12, 35 - int(scroll * 2))
 
-        if not boss_active and spawn_tick > spawn_interval and random.random() < 0.55:
+        new_zone = (score >= 10000) * 3 + (score >= 5000) * 2 + (score >= 2000) * 1
+        if new_zone > current_zone:
+            current_zone = new_zone
+            zone_labels = ["", "ŚREDNIA", "TRUDNA", "SZALONA"]
+            status_msg = f"STREFA {current_zone} – {zone_labels[current_zone]}"
+            status_timer = 120
+
+        wave_check = score // 1000
+        if wave_check > last_wave:
+            last_wave = wave_check
+            wave_cooldown = 90
+            status_msg = f"FALA {wave_check}!"
+            status_timer = 90
+            for _ in range(random.randint(3, 5)):
+                ox = random.uniform(LANE_OFFSET + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 30)
+                obstacles.append(Obstacle(ox, scroll, random.choice(['small', 'normal'])))
+            spawn_tick = 0
+
+        if wave_cooldown > 0:
+            wave_cooldown -= 1
+
+        spawn_chance = min(0.85, 0.35 + scroll * 0.035)
+
+        if not boss_active and spawn_tick > spawn_interval and random.random() < spawn_chance and wave_cooldown == 0:
             r = random.random()
             area_left = LANE_OFFSET + 10
             area_right = LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 10
-            if r < 0.15:
+            group_chance = min(0.4, 0.1 + scroll * 0.02)
+            big_chance = min(0.3, 0.1 + scroll * 0.015)
+            if r < group_chance:
                 spawn_group_obstacle(obstacles, scroll)
-            elif r < 0.3:
+            elif r < group_chance + big_chance:
                 x = random.uniform(area_left, area_right - 48)
                 obstacles.append(Obstacle(x, scroll, 'big'))
             else:
-                otype = 'small' if r < 0.45 else 'normal'
+                otype = 'small' if r < group_chance + big_chance + 0.15 else 'normal'
                 size = Obstacle.TYPES[otype]['size']
                 x = random.uniform(area_left, area_right - size)
                 obstacles.append(Obstacle(x, scroll, otype))
             spawn_tick = 0
 
-        if coin_tick > coin_interval and random.random() < 0.4:
+        coin_spawn_chance = min(0.65, 0.3 + scroll * 0.025)
+        if coin_tick > coin_interval and random.random() < coin_spawn_chance:
             r2 = random.random()
             al = LANE_OFFSET + COIN_RADIUS
             ar = LANE_OFFSET + LANE_COUNT * LANE_WIDTH - COIN_RADIUS
             x = random.uniform(al, ar)
-            if r2 < 0.04:
+            gold_chance = min(0.1, 0.03 + scroll * 0.005)
+            silver_chance = min(0.2, 0.1 + scroll * 0.008)
+            if r2 < gold_chance:
                 coin_objs.append(CoinObj(x, scroll, 'gold'))
-            elif r2 < 0.14:
+            elif r2 < gold_chance + silver_chance:
                 coin_objs.append(CoinObj(x, scroll, 'silver'))
             else:
                 coin_objs.append(CoinObj(x, scroll, 'normal'))
@@ -1361,9 +1391,9 @@ def game_loop(screen, upgrades):
         if spawn_tick > spawn_interval and random.random() < 0.06 and not portal_mode:
             drones.append(Drone(scroll))
 
-        boss_check = score // BOSS_INTERVAL
-        if boss_check > last_boss_score and not boss_active:
-            last_boss_score = boss_check
+        boss_wave = last_wave
+        if boss_wave >= 5 and boss_wave % 5 == 0 and not boss_active and last_boss_score < boss_wave:
+            last_boss_score = boss_wave
             boss_active = True
             obstacles.append(Obstacle(0, scroll, 'boss'))
             status_msg = "BOSS! Omijaj!"
