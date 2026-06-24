@@ -2078,8 +2078,8 @@ def game_loop(screen, upgrades):
             shake_offset = (sx, sy)
 
         tod = (diff_tick / 10800) % 6
-        road.draw(screen, effective_scroll, tod, night_active, biome=current_biome)
         if not portal_mode:
+            road.draw(screen, effective_scroll, tod, night_active, biome=current_biome)
             player.draw(screen, shake_offset, total_coins)
             for o in obstacles:
                 o.draw(screen, shake_offset, night_active)
@@ -2131,8 +2131,8 @@ def game_loop(screen, upgrades):
                     pygame.draw.circle(screen, (min(255, 200 + alpha), min(255, 100 + alpha // 2), alpha), (int(sp[0]), int(sp[1])), 2)
             if BIOME_EFFECTS[current_biome].get('glitch'):
                 for gl in glitch_lines:
-                    s = pygame.Surface((gl[3], gl[4]), pygame.SRCALPHA)
-                    s.fill((gl[5][0], gl[5][1], gl[5][2], 120))
+                    s = pygame.Surface((gl[2], gl[3]), pygame.SRCALPHA)
+                    s.fill((gl[4][0], gl[4][1], gl[4][2], 120))
                     screen.blit(s, (gl[0], gl[1]))
             if BIOME_EFFECTS[current_biome].get('fog'):
                 fog = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
