@@ -66,6 +66,7 @@ Przy wejściu do nowej strefy: komunikat "STREFA X – NAZWA" (120 ticków).
 - Grupy: 2-3 małe przeszkody obok siebie (spawn_group_obstacle)
 - Po zestrzeleniu: dzielą się na 2 mniejsze części (jeśli nie są już małe)
 - Kolizja z graczem: traci życie, jeśli nie ma tarczy
+- **Przeszkoda tarczowa** (`otype='shield'`): spawn od scroll > 6 (3% szansy), +50 pkt przy kolizji, zużywa tarczę jeśli gracz ma, w przeciwnym razie zabiera 1 życie
 - Boss: pojawia się co 5 fal, ma pasek HP (3-7 życia w zależności od boss_count)
 
 ### Nowe typy przeszkód (Plan 02)
@@ -152,6 +153,32 @@ Power-up pojawia się na drodze co 800-1200 dystansu (maksymalnie 1 aktywny). Po
 - Czas trwania: 120 klatek + bonus z ulepszeń
 - Podwaja prędkość przewijania (`BOOST_SPEED_MUL = 2.0`)
 - Limit: 1 sprint na sekwencję (boost_active blokada)
+- **Taran:** podczas sprintu gracz niszczy przeszkody na drodze (poza bossem i tarczową), dostając +5 pkt i +1 combo za każdą
+- **Bez monet:** podczas sprintu monety nie są zbierane (przelatują obok) – decyzja: sprint teraz (taran) czy później (więcej monet)?
+
+## Mnożnik za mało żyć
+
+Zachęca do ryzykowania przy niskim stanie żyć:
+
+| Życia | Mnożnik |
+|-------|---------|
+| 1 | ×2.0 |
+| 2 | ×1.5 |
+| 3+ | ×1.0 |
+
+Mnożnik (`life_mult`) stosowany do wszystkich źródeł punktów:
+- Monety (`pt * multiplier * life_mult`)
+- Zestrzelenia (boss +100, mini-boss +50, dron +15, moving +10)
+- Łańcuch monet (+50), przeszkoda tarczowa (+50), sprint taran (+5)
+
+## Rozgałęzienia trasy (Fork)
+
+- Pojawia się co 1500-2500 dystansu jako rozwidlenie drogi
+- Lewy pas (ryzykowny): nagrody `coins` (więcej monet) lub `speed` (sprint)
+- Prawy pas (bezpieczny): nagrody `shield` (tarcza) lub `points` (punkty)
+- Wybór: gracz po prostu znajduje się po lewej/prawej stronie środka drogi gdy timer (120 klatek) wygaśnie
+- Wizualnie: półprzezroczysty overlay z trójkątnymi strzałkami w lewo i prawo oraz etykietami nagród
+- Po wyborze: nagroda zostaje przyznana natychmiast (monety pojawiają się na pasie, sprint/tarcza aktywuje się)
 
 ## Night cycle
 

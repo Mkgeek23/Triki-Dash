@@ -137,6 +137,19 @@ Rysowanie: kolorowe koło z glow efektem i białą ikoną wewnątrz. Unosi się 
 
 Rysowanie: fioletowy/czerwony prostokąt z trzema wirującymi kropkami (wzór podobny do drim), obsługa night mode.
 
+## `Fork` ~linia 768
+
+Rozwidlenie trasy – gracz wybiera lewy (ryzykowny) lub prawy (bezpieczny) pas. Pojawia się co 1500-2500 dystansu.
+
+**Losowanie nagród:**
+- Lewy pas: losuje z `['coins', 'speed']` (więcej monet lub sprint)
+- Prawy pas: losuje z `['shield', 'points']` (tarcza lub punkty)
+
+**Działanie:**
+- `timer` = 120 klatek (~2s), po czym fork się rozwiązuje
+- `resolve(player, obstacles, coin_objs, scroll)` – sprawdza po której stronie środka drogi jest gracz, przyznaje nagrodę
+- Rysowanie: półprzezroczysty overlay z trójkątnymi strzałkami w lewo/prawo i etykietami nagród
+
 ## `Road` ~linia 643
 
 Tło i droga.

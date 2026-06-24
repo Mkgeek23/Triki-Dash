@@ -339,6 +339,7 @@ class Obstacle:
         'normal': {'size': 34, 'speed_mul': 1.0, 'color': (230, 40, 60)},
         'big': {'size': 48, 'speed_mul': 0.6, 'color': (180, 30, 50)},
         'boss': {'size': 0, 'speed_mul': 0.5, 'color': (120, 20, 40)},
+        'shield': {'size': 34, 'speed_mul': 0.8, 'color': (200, 180, 50)},
     }
 
     def __init__(self, x, base_speed, otype='normal'):
@@ -413,6 +414,12 @@ class CoinObj:
             self.dark = (160, 170, 180)
             self.points = 2
             self.special = True
+        elif ctype == 'risk':
+            self.radius = 12
+            self.color = GOLD
+            self.dark = (200, 170, 0)
+            self.points = 10
+            self.special = True
         else:
             self.color = YELLOW
             self.dark = (200, 180, 0)
@@ -435,6 +442,12 @@ class CoinObj:
             gs = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
             pygame.draw.circle(gs, (255, 215, 0, glow // 4), (r * 2, r * 2), r * 2)
             screen.blit(gs, (cx - r * 2, cy - r * 2))
+        if self.ctype == 'risk':
+            for i in range(3):
+                sa = self.phase + i * math.pi * 2 / 3
+                sx = cx + int(math.cos(sa) * (r + 4))
+                sy = cy + int(math.sin(sa) * (r + 4))
+                pygame.draw.circle(screen, (255, 255, 200, 180), (sx, sy), 2)
         pygame.draw.circle(screen, self.color, (cx, cy), r)
         pygame.draw.circle(screen, self.dark, (cx, cy), r, 2)
         pygame.draw.circle(screen, self.dark, (cx - r // 3, cy), max(2, r // 3))
@@ -751,6 +764,93 @@ class MiniBoss:
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.size, self.size)
+
+class Fork:
+    def __init__(self, scroll):
+        self.y = -40
+        self.timer = 120
+        self.active = True
+        self.chosen = None
+        self.left_reward = random.choice(['coins', 'speed'])
+        self.right_reward = random.choice(['shield', 'points'])
+
+    def update(self):
+        if self.active:
+            self.timer -= 1
+            self.y += scroll
+        if self.timer <= 0 and self.chosen is None:
+            self.chosen = 'left'
+            self.active = False
+        if self.y > HEIGHT + 60:
+            self.active = False
+
+    def draw(self, screen, scroll):
+        if not self.active:
+            return
+        overlay_alpha = min(180, int((120 - self.timer) * 2)) if self.timer > 0 else 180
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        cx = LANE_OFFSET + LANE_COUNT * LANE_WIDTH // 2
+        y_pos = min(HEIGHT // 2, int(self.y) + 60)
+        fade = min(1.0, (120 - self.timer) / 30) if self.timer > 0 else 1.0
+        a = int(overlay_alpha * fade)
+        if a <= 0:
+            return
+        left_color = (255, 180, 50, a)
+        right_color = (50, 200, 100, a)
+        hw = LANE_COUNT * LANE_WIDTH // 2
+        fork_y = y_pos
+        pygame.draw.polygon(overlay, left_color, [
+            (cx - 10, fork_y), (cx - 10 - hw, fork_y - 60), (cx - 10 - hw, fork_y + 60)
+        ], 3)
+        pygame.draw.polygon(overlay, right_color, [
+            (cx + 10, fork_y), (cx + 10 + hw, fork_y - 60), (cx + 10 + hw, fork_y + 60)
+        ], 3)
+        reward_labels = {'coins': 'MONETY', 'speed': 'PRĘDKOŚĆ', 'shield': 'TARCZA', 'points': 'PUNKTY'}
+        if a > 30:
+            lfont = pygame.font.SysFont('Arial', 16, bold=True)
+            lsurf = lfont.render(f"← {reward_labels.get(self.left_reward, '')}", True, (255, 220, 100))
+            overlay.blit(lsurf, (cx - hw - lsurf.get_width(), fork_y - 8))
+            rsurf = lfont.render(f"{reward_labels.get(self.right_reward, '')} →", True, (100, 255, 150))
+            overlay.blit(rsurf, (cx + hw + 10, fork_y - 8))
+            tfont = pygame.font.SysFont('Arial', 20, bold=True)
+            tsurf = tfont.render("WYBIERZ PAS!", True, (255, 255, 255))
+            overlay.blit(tsurf, (cx - tsurf.get_width() // 2, fork_y - 50))
+        screen.blit(overlay, (0, 0))
+
+    def get_choice(self, player_x):
+        cx = player_x + PLAYER_SIZE // 2
+        if cx < LANE_OFFSET + LANE_COUNT * LANE_WIDTH // 2:
+            return 'left'
+        return 'right'
+
+    def resolve(self, player, obstacles, coin_objs, scroll):
+        choice = self.get_choice(player.x)
+        self.chosen = choice
+        self.active = False
+        if choice == 'left':
+            if self.left_reward == 'coins':
+                for _ in range(5):
+                    cx = random.uniform(LANE_OFFSET + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH // 2 - 10)
+                    coin_objs.append(CoinObj(cx, 0, 'gold'))
+            elif self.left_reward == 'speed':
+                player.boost_timer = max(player.boost_timer, 120)
+            elif self.left_reward == 'shield':
+                player.shield = True
+            elif self.left_reward == 'points':
+                pass
+            return self.left_reward
+        else:
+            if self.right_reward == 'coins':
+                for _ in range(3):
+                    cx = random.uniform(LANE_OFFSET + LANE_COUNT * LANE_WIDTH // 2 + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 10)
+                    coin_objs.append(CoinObj(cx, 0, 'silver'))
+            elif self.right_reward == 'speed':
+                player.boost_timer = max(player.boost_timer, 60)
+            elif self.right_reward == 'shield':
+                player.shield = True
+            elif self.right_reward == 'points':
+                pass
+            return self.right_reward
 
 class Road:
     def __init__(self):
@@ -1385,6 +1485,8 @@ def game_loop(screen, upgrades):
     challenges = load_challenges()
     prev_obstacles_len = 0
     shoot_hits = 0
+    forks = []
+    fork_cooldown = 1500
     drones_destroyed = 0
 
     current_biome = 0
@@ -1605,6 +1707,7 @@ def game_loop(screen, upgrades):
             last_shake_check = (gy, gz)
 
         speed_mul = BOOST_SPEED_MUL if player.boost_timer > 0 else 1.0
+        life_mult = 2.0 if player.lives <= 1 else 1.5 if player.lives == 2 else 1.0
         effective_scroll = scroll * speed_mul
         if active_powerup == 'slow':
             effective_scroll *= 0.5
@@ -1698,6 +1801,10 @@ def game_loop(screen, upgrades):
                 obstacles.append(Obstacle(x, scroll, otype))
             spawn_tick = 0
 
+        if not boss_active and spawn_tick > spawn_interval and random.random() < 0.03 and scroll > 6 and wave_cooldown == 0:
+            sx = random.uniform(LANE_OFFSET + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - Obstacle.TYPES['shield']['size'] - 10)
+            obstacles.append(Obstacle(sx, scroll, 'shield'))
+
         coin_spawn_chance = min(0.65, 0.3 + scroll * 0.025)
         if coin_tick > coin_interval and random.random() < coin_spawn_chance:
             r2 = random.random()
@@ -1726,6 +1833,11 @@ def game_loop(screen, upgrades):
                 else:
                     coin_objs.append(CoinObj(x, scroll, 'normal'))
             coin_tick = 0
+
+        if scroll > 8 and random.random() < 0.015 and not portal_mode:
+            edge = random.choice([0, 1])
+            cx = LANE_OFFSET + (0 if edge == 0 else LANE_COUNT * LANE_WIDTH - COIN_RADIUS * 2)
+            coin_objs.append(CoinObj(cx, scroll, 'risk'))
 
         if spawn_tick > spawn_interval and random.random() < 0.08 and not boss_active and not portal_mode:
             targets.append(Target(scroll))
@@ -1763,6 +1875,12 @@ def game_loop(screen, upgrades):
             last_portal_score = portal_check
             px = random.uniform(LANE_OFFSET + 20, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 20)
             portals.append(PortalObj(px))
+
+        if not portal_mode and not boss_active and fork_cooldown <= 0 and len([f for f in forks if f.active]) == 0:
+            forks.append(Fork(scroll))
+            fork_cooldown = random.randint(1500, 2500)
+        if fork_cooldown > 0:
+            fork_cooldown -= 1
             status_msg = "PORTAL! Wskakuj!"
             status_timer = 90
 
@@ -1793,10 +1911,10 @@ def game_loop(screen, upgrades):
                         if o.hp <= 0:
                             obstacles.remove(o)
                             boss_active = False
-                            score += 100
+                            score += int(100 * life_mult)
                             for _ in range(5):
                                 particles.append(Particle(o.x + o.size // 2, HEIGHT // 2, RED, 15))
-                            status_msg = "BOSS zestrzelony! +100"
+                            status_msg = f"BOSS zestrzelony! +{int(100 * life_mult)}"
                             status_timer = 90
                     elif o.otype != 'boss':
                         obstacles.remove(o)
@@ -1813,7 +1931,7 @@ def game_loop(screen, upgrades):
                 if b.get_rect().colliderect(d.get_rect()):
                     drones.remove(d)
                     drones_destroyed += 1
-                    score += 15
+                    score += int(15 * life_mult)
                     player.combo += 2
                     for _ in range(4):
                         particles.append(Particle(d.x, d.y, (255, 60, 100), 6))
@@ -1825,7 +1943,7 @@ def game_loop(screen, upgrades):
             for m in moving_obstacles[:]:
                 if b.get_rect().colliderect(m.get_rect()):
                     moving_obstacles.remove(m)
-                    score += 10
+                    score += int(10 * life_mult)
                     player.combo += 1
                     shoot_hits += 1
                     particles.append(Particle(m.x + m.size // 2, m.y + m.size // 2, (220, 100, 60), 6))
@@ -1840,12 +1958,12 @@ def game_loop(screen, upgrades):
                     particles.append(Particle(mb.x + mb.size // 2, mb.y + mb.size // 2, (200, 50, 100), 8))
                     if mb.hp <= 0:
                         mini_bosses.remove(mb)
-                        score += 50
+                        score += int(50 * life_mult)
                         player.combo += 3
                         shoot_hits += 1
                         for _ in range(5):
                             particles.append(Particle(mb.x + mb.size // 2, mb.y + mb.size // 2, (255, 80, 150), 10))
-                        status_msg = "Mini-boss zniszczony! +50"
+                        status_msg = f"Mini-boss zniszczony! +{int(50 * life_mult)}"
                         status_timer = 60
                     bullets.remove(b)
                     hit = True
@@ -1902,6 +2020,34 @@ def game_loop(screen, upgrades):
                             return score, coins_collected, player.max_combo, challenges
                         status_msg = f"Pozostało żyć: {player.lives}"
                         status_timer = 60
+                    continue
+                if o.otype == 'shield':
+                    score += int(50 * life_mult)
+                    obstacles.remove(o)
+                    if player.shield:
+                        player.shield = False
+                        particles.append(Particle(o.x + o.size // 2, o.y + o.size // 2, PURPLE, 12))
+                        status_msg = f"Tarczowa przeszkoda! +{int(50 * life_mult)} (tarcza zużyta)"
+                    elif player.invincible <= 0:
+                        player.lives -= 1
+                        player.invincible = 90
+                        player.combo = 0
+                        wave_clear = False
+                        particles.append(Particle(o.x + o.size // 2, o.y + o.size // 2, RED, 14))
+                        shake_timer = 10
+                        shake_intensity = 8
+                        s_hit.play()
+                        if player.lives <= 0:
+                            save_total_coins(total_coins)
+                            return score, coins_collected, player.max_combo, challenges
+                        status_msg = f"Tarczowa przeszkoda! +{int(50 * life_mult)} (straciłeś życie)"
+                    status_timer = 60
+                    continue
+                if player.boost_timer > 0 and o.otype != 'boss' and o.otype != 'shield':
+                    obstacles.remove(o)
+                    score += int(5 * life_mult)
+                    player.combo += 1
+                    particles.append(Particle(o.x + o.size // 2, o.y + o.size // 2, (100, 255, 255), 8))
                     continue
                 if player.shield:
                     player.shield = False
@@ -2036,6 +2182,15 @@ def game_loop(screen, upgrades):
             if t.y > HEIGHT + 40:
                 targets.remove(t)
 
+        for f in forks[:]:
+            f.update()
+            if f.chosen is not None and not f.active:
+                forks.remove(f)
+            elif f.timer <= 0 and f.chosen is None:
+                reward = f.resolve(player, obstacles, coin_objs, scroll)
+                status_msg = f"Wybrano {'LEWO' if f.chosen == 'left' else 'PRAWO'}! Nagroda: {reward}"
+                status_timer = 90
+
         for ch in challenges['challenges']:
             if ch['type'] == 'dodge' and not ch['done']:
                 ch['progress'] = max(ch['progress'], min(ch['target'], player.dodge_streak))
@@ -2062,15 +2217,38 @@ def game_loop(screen, upgrades):
             if c.y > HEIGHT + 20:
                 coin_objs.remove(c)
             elif player.get_rect().colliderect(c.get_rect()):
+                if player.boost_timer > 0:
+                    continue
                 coin_objs.remove(c)
                 coins_collected += c.points
+                if c.ctype == 'risk':
+                    p_edge = player.x + PLAYER_SIZE // 2
+                    edge_dist = min(abs(p_edge - LANE_OFFSET), abs(p_edge - (LANE_OFFSET + LANE_COUNT * LANE_WIDTH)))
+                    if edge_dist > 15:
+                        if player.shield:
+                            player.shield = False
+                            particles.append(Particle(player.x + PLAYER_SIZE // 2, player.y, PURPLE, 12))
+                            status_msg = "Tarcza stracona! Ryzykowna moneta +10"
+                        else:
+                            player.lives -= 1
+                            player.invincible = 60
+                            player.combo = 0
+                            wave_clear = False
+                            shake_timer = 10
+                            shake_intensity = 8
+                            s_hit.play()
+                            if player.lives <= 0:
+                                save_total_coins(total_coins)
+                                return score, coins_collected, player.max_combo, challenges
+                            status_msg = "Straciłeś życie! Ryzykowna moneta +10"
+                        status_timer = 60
                 if c.chain_id > -1:
                     g = chain_groups.get(c.chain_id)
                     if g:
                         g['collected'] += 1
                         if g['collected'] >= g['total']:
-                            score += 50
-                            status_msg = "Łańcuch monet! +50"
+                            score += int(50 * life_mult)
+                            status_msg = f"Łańcuch monet! +{int(50 * life_mult)}"
                             status_timer = 60
                             flare_timer = 30
                             for _ in range(6):
@@ -2093,7 +2271,7 @@ def game_loop(screen, upgrades):
                 if multiplier != last_mult and multiplier > 1:
                     flare_timer = 20
                     last_mult = multiplier
-                score += pt * multiplier
+                score += int(pt * multiplier * life_mult)
                 player.combo += 1
                 if player.combo > player.max_combo:
                     player.max_combo = player.combo
@@ -2222,6 +2400,8 @@ def game_loop(screen, upgrades):
         if not portal_mode:
             for pu in powerups:
                 pu.draw(screen, shake_offset)
+            for f in forks:
+                f.draw(screen, scroll)
             if BIOME_EFFECTS[current_biome].get('snow'):
                 for sp in snow_particles:
                     c = (200, 220, 255, 180)
