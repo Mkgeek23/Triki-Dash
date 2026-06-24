@@ -673,16 +673,12 @@ def upgrade_cost(level, base):
 def show_shop(screen, upgrades):
     global triki_button
     max_levels = {'sprint_level': 3, 'magnet_level': 3, 'life_level': 2}
-    labels = {
-        'sprint_level': ('Dłuższy sprint', f'Czas sprintu +{50 * (upgrades["sprint_level"] + 1)}%'),
-        'magnet_level': ('Większy magnes', f'Zasięg +{(upgrades["magnet_level"] + 1) * 40}px'),
-        'life_level': ('Dodatkowe życie', f'+{upgrades["life_level"] + 1} życie na start'),
-    }
     keys = ['sprint_level', 'magnet_level', 'life_level']
+    items = keys + ['POWRÓT']
     selected = 0
     clock = pygame.time.Clock()
     last_tilt_time = 0
-    prev_tilt = 0.0
+    last_shake_mag = 0
 
     def buy_upgrade():
         nonlocal upgrades
@@ -708,24 +704,25 @@ def show_shop(screen, upgrades):
                 if e.key == pygame.K_ESCAPE:
                     return True
                 if e.key == pygame.K_DOWN:
-                    selected = (selected + 1) % len(keys)
+                    selected = (selected + 1) % len(items)
                 if e.key == pygame.K_UP:
-                    selected = (selected - 1) % len(keys)
+                    selected = (selected - 1) % len(items)
                 if e.key == pygame.K_RETURN or e.key == pygame.K_SPACE:
+                    if selected == len(keys):
+                        return True
                     buy_upgrade()
 
         now = pygame.time.get_ticks()
-        tilt = triki_analog
-        if abs(tilt) > 0.7 and abs(prev_tilt) < 0.4 and now - last_tilt_time > 600:
-            if tilt > 0:
-                selected = (selected + 1) % len(keys)
-            else:
-                selected = (selected - 1) % len(keys)
+        shake_mag = abs(triki_accel[0]) + abs(triki_accel[1]) + abs(triki_accel[2])
+        if shake_mag > 22000 and last_shake_mag < 17000 and now - last_tilt_time > 400:
+            selected = (selected + 1) % len(items)
             last_tilt_time = now
-        prev_tilt = tilt
+        last_shake_mag = shake_mag
 
         if triki_button:
             triki_button = False
+            if selected == len(keys):
+                return True
             buy_upgrade()
 
         labels = {
@@ -757,7 +754,12 @@ def show_shop(screen, upgrades):
             else:
                 draw_text(screen, "MAX", 20, 500, y + 15, GREEN, center=False)
 
-        draw_text(screen, "Przechyl Triki / Strzałki - wybór  |  Przycisk / ENTER - kup  |  ESC - powrót", 16, WIDTH // 2, HEIGHT - 40, LIGHT_GRAY)
+        y_back = 150 + len(keys) * 110
+        back_color = CYAN if selected == len(keys) else WHITE
+        prefix = "► " if selected == len(keys) else "  "
+        draw_text(screen, prefix + "POWRÓT", 24, 150, y_back, back_color, center=False)
+
+        draw_text(screen, "Przechyl Triki / Strzałki - wybór  |  Przycisk / ENTER - akceptuj", 16, WIDTH // 2, HEIGHT - 40, LIGHT_GRAY)
         pygame.display.flip()
 
 def menu_draw_frame(screen, color=CYAN):
@@ -773,7 +775,7 @@ def show_start(screen):
     clock = pygame.time.Clock()
     blink = 0
     last_tilt_time = 0
-    prev_tilt = 0.0
+    last_shake_mag = 0
     connection_status = "Łączenie z Triki..."
     status_color = LIGHT_GRAY
     status_msgs = []
@@ -818,14 +820,11 @@ def show_start(screen):
                     return False
 
         now = pygame.time.get_ticks()
-        tilt = triki_analog
-        if abs(tilt) > 0.7 and abs(prev_tilt) < 0.4 and now - last_tilt_time > 600:
-            if tilt > 0:
-                selected = (selected + 1) % len(menu_options)
-            else:
-                selected = (selected - 1) % len(menu_options)
+        shake_mag = abs(triki_accel[0]) + abs(triki_accel[1]) + abs(triki_accel[2])
+        if shake_mag > 22000 and last_shake_mag < 17000 and now - last_tilt_time > 400:
+            selected = (selected + 1) % len(menu_options)
             last_tilt_time = now
-        prev_tilt = tilt
+        last_shake_mag = shake_mag
 
         if triki_button:
             triki_button = False
@@ -876,7 +875,7 @@ def show_over(screen, score, coins, highscore, stars, best_stars, challenges):
     clock = pygame.time.Clock()
     blink = 0
     last_tilt_time = 0
-    prev_tilt = 0.0
+    last_shake_mag = 0
 
     while True:
         clock.tick(30)
@@ -903,14 +902,11 @@ def show_over(screen, score, coins, highscore, stars, best_stars, challenges):
                     return False
 
         now = pygame.time.get_ticks()
-        tilt = triki_analog
-        if abs(tilt) > 0.7 and abs(prev_tilt) < 0.4 and now - last_tilt_time > 600:
-            if tilt > 0:
-                selected = (selected + 1) % len(menu_options)
-            else:
-                selected = (selected - 1) % len(menu_options)
+        shake_mag = abs(triki_accel[0]) + abs(triki_accel[1]) + abs(triki_accel[2])
+        if shake_mag > 22000 and last_shake_mag < 17000 and now - last_tilt_time > 400:
+            selected = (selected + 1) % len(menu_options)
             last_tilt_time = now
-        prev_tilt = tilt
+        last_shake_mag = shake_mag
 
         if triki_button:
             triki_button = False
