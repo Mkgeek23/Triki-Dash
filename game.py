@@ -78,12 +78,15 @@ BIOMES = [
 ]
 
 BIOME_EFFECTS = {
-    0: {}, # kosmos – brak dodatkowych efektów
+    0: {},
     1: {'snow': True},
     2: {'sparks': True},
     3: {'fog': True},
     4: {'glitch': True},
 }
+
+POWERUP_TYPES = ['star', 'double', 'slow', 'rapid', 'magnet']
+POWERUP_DURATION = {'star': 300, 'double': 480, 'slow': 240, 'rapid': 360, 'magnet': 300}
 
 triki_status_queue = queue.Queue()
 triki_analog = 0.0
@@ -589,6 +592,55 @@ class Target:
     def get_rect(self):
         r = self.radius + 4
         return pygame.Rect(self.x - r, self.y - r, r * 2, r * 2)
+
+class PowerUp:
+    def __init__(self, x, base_speed):
+        self.x = x
+        self.y = -30
+        self.speed = base_speed
+        self.ptype = random.choice(POWERUP_TYPES)
+        self.phase = 0
+        self.size = 28
+
+    def update(self):
+        self.y += self.speed
+        self.phase += 0.06
+
+    def draw(self, screen, offset=(0, 0)):
+        ox, oy = offset
+        cx = int(self.x + ox)
+        cy = int(self.y + oy + math.sin(self.phase) * 4)
+        p = self.ptype
+        colors = {'star': GOLD, 'double': SILVER, 'slow': (100, 150, 255), 'rapid': CYAN, 'magnet': PURPLE}
+        c = colors.get(p, WHITE)
+        glow = int(100 + 155 * (0.5 + 0.5 * math.sin(self.phase * 2)))
+        gs = pygame.Surface((self.size + 8, self.size + 8), pygame.SRCALPHA)
+        pygame.draw.circle(gs, (c[0], c[1], c[2], glow // 3), (self.size // 2 + 4, self.size // 2 + 4), self.size // 2 + 4)
+        screen.blit(gs, (cx - self.size // 2 - 4, cy - self.size // 2 - 4))
+        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        pygame.draw.circle(s, c, (self.size // 2, self.size // 2), self.size // 2)
+        pygame.draw.circle(s, WHITE, (self.size // 2, self.size // 2), self.size // 2 - 4, 2)
+        if p == 'star':
+            for i in range(5):
+                a = -math.pi / 2 + i * math.pi * 2 / 5
+                px = self.size // 2 + int(math.cos(a) * (self.size // 2 - 5))
+                py = self.size // 2 + int(math.sin(a) * (self.size // 2 - 5))
+                pygame.draw.circle(s, WHITE, (px, py), 3)
+        elif p == 'double':
+            pygame.draw.circle(s, WHITE, (self.size // 2 - 5, self.size // 2), 5)
+            pygame.draw.circle(s, WHITE, (self.size // 2 + 5, self.size // 2), 5)
+        elif p == 'slow':
+            for i in range(2):
+                pygame.draw.ellipse(s, WHITE, (8 + i * 10, 6, 6, 16), 2)
+        elif p == 'rapid':
+            pygame.draw.polygon(s, WHITE, [(8, 6), (20, 12), (8, 18)])
+        elif p == 'magnet':
+            pygame.draw.circle(s, WHITE, (self.size // 2, 10), 6)
+            pygame.draw.rect(s, WHITE, (self.size // 2 - 3, 16, 6, 8))
+        screen.blit(s, (cx - self.size // 2, cy - self.size // 2))
+
+    def get_rect(self):
+        return pygame.Rect(self.x - self.size // 2, self.y - self.size // 2, self.size, self.size)
 
 class MovingObstacle:
     def __init__(self, base_speed):
@@ -1343,6 +1395,11 @@ def game_loop(screen, upgrades):
     spark_particles = []
     glitch_lines = []
 
+    powerups = []
+    active_powerup = None
+    powerup_timer = 0
+    last_powerup_score = 0
+
     chain_groups = {}
     next_chain_id = 1
     last_lane_change_tick = 0
@@ -1549,6 +1606,8 @@ def game_loop(screen, upgrades):
 
         speed_mul = BOOST_SPEED_MUL if player.boost_timer > 0 else 1.0
         effective_scroll = scroll * speed_mul
+        if active_powerup == 'slow':
+            effective_scroll *= 0.5
 
         player.update(triki_analog if triki_connected else None, total_coins)
         road.update(effective_scroll)
@@ -1674,6 +1733,11 @@ def game_loop(screen, upgrades):
         if spawn_tick > spawn_interval and random.random() < 0.06 and not portal_mode:
             drones.append(Drone(scroll))
 
+        if active_powerup is None and not portal_mode and score - last_powerup_score >= random.randint(800, 1200) and len(powerups) == 0:
+            px = random.uniform(LANE_OFFSET + 10, LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 10)
+            powerups.append(PowerUp(px, scroll))
+            last_powerup_score = score
+
         if spawn_tick > spawn_interval and random.random() < 0.04 and current_zone >= 1 and not boss_active and not portal_mode and wave_cooldown == 0:
             moving_obstacles.append(MovingObstacle(scroll))
 
@@ -1703,6 +1767,8 @@ def game_loop(screen, upgrades):
             status_timer = 90
 
         m_range = 120 + magnet_bonus
+        if active_powerup == 'magnet':
+            m_range = WIDTH
         if player.shield:
             for c in coin_objs:
                 dx = (player.x + PLAYER_SIZE // 2) - c.x
@@ -2021,6 +2087,8 @@ def game_loop(screen, upgrades):
                     player.reload(1)
                 save_total_coins(total_coins)
                 pt = 50 * c.points
+                if active_powerup == 'double':
+                    pt *= 2
                 multiplier = min(int(player.combo * 0.1) + 1, 15)
                 if multiplier != last_mult and multiplier > 1:
                     flare_timer = 20
@@ -2043,6 +2111,37 @@ def game_loop(screen, upgrades):
                         if ch['progress'] >= ch['target']:
                             ch['done'] = True
                 save_challenges(challenges)
+
+        for pu in powerups[:]:
+            pu.update()
+            if pu.y > HEIGHT + 20:
+                powerups.remove(pu)
+            elif player.get_rect().colliderect(pu.get_rect()):
+                powerups.remove(pu)
+                active_powerup = pu.ptype
+                powerup_timer = POWERUP_DURATION[pu.ptype]
+                status_msg = f"{pu.ptype.upper()}!"
+                status_timer = 60
+                if pu.ptype == 'star':
+                    player.invincible = POWERUP_DURATION['star']
+                elif pu.ptype == 'rapid':
+                    player.max_ammo = 6
+                    player.ammo = 6
+                    player.shoot_cooldown = 5
+                elif pu.ptype == 'magnet':
+                    pass
+                particles.append(Particle(pu.x, pu.y, (255, 255, 255), 10))
+
+        if active_powerup and powerup_timer > 0:
+            powerup_timer -= 1
+            if active_powerup == 'rapid' and diff_tick % 10 == 0:
+                player.reload(1)
+            if powerup_timer <= 0:
+                if active_powerup == 'rapid':
+                    player.max_ammo = 5
+                    player.ammo = min(player.ammo, 5)
+                    player.shoot_cooldown = 15
+                active_powerup = None
 
         for p in portals[:]:
             p.update()
@@ -2121,6 +2220,8 @@ def game_loop(screen, upgrades):
             p.draw(screen, shake_offset)
 
         if not portal_mode:
+            for pu in powerups:
+                pu.draw(screen, shake_offset)
             if BIOME_EFFECTS[current_biome].get('snow'):
                 for sp in snow_particles:
                     c = (200, 220, 255, 180)
@@ -2150,6 +2251,19 @@ def game_loop(screen, upgrades):
         draw_night_overlay(screen, night_active, night_timer % NIGHT_INTERVAL)
         draw_flare(screen, flare_timer)
 
+        if active_powerup == 'slow' and powerup_timer > 0:
+            slow = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            slow.fill((50, 80, 180, 40))
+            screen.blit(slow, (0, 0))
+        if active_powerup == 'rapid' and powerup_timer > 0:
+            rapid = pygame.Surface((PLAYER_SIZE + 16, PLAYER_SIZE + 16), pygame.SRCALPHA)
+            rapid.fill((0, 200, 255, 60))
+            screen.blit(rapid, (player.x - 8, player.y - 8))
+        if active_powerup == 'magnet' and powerup_timer > 0:
+            magnet = pygame.Surface((PLAYER_SIZE + 16, PLAYER_SIZE + 16), pygame.SRCALPHA)
+            magnet.fill((180, 80, 255, 60))
+            screen.blit(magnet, (player.x - 8, player.y - 8))
+
         mult = min(int(player.combo * 0.1) + 1, 15)
         mult_text = f"x{mult}" if mult > 1 else ""
         draw_text(screen, f"Dystans: {score}", 22, 110, 25, WHITE, center=False)
@@ -2172,6 +2286,12 @@ def game_loop(screen, upgrades):
         draw_button_indicator(screen, triki_connected, triki_button_raw)
         draw_combo_bar(screen, player.combo)
         draw_challenge_hud(screen, challenges)
+
+        if active_powerup and powerup_timer > 0:
+            pct = int(powerup_timer / POWERUP_DURATION[active_powerup] * 100)
+            names = {'star': 'NIEŚMIERTELNOŚĆ', 'double': 'x2 MONETY', 'slow': 'SPOWOLNIENIE', 'rapid': 'SZYBKOSTRZELNOŚĆ', 'magnet': 'MAGNES'}
+            colors = {'star': GOLD, 'double': SILVER, 'slow': (100, 150, 255), 'rapid': CYAN, 'magnet': PURPLE}
+            draw_text(screen, f"{names[active_powerup]} {pct}%", 16, WIDTH - 110, 80, colors[active_powerup], center=False, right=True)
 
         if player.boost_timer > 0:
             draw_text(screen, f"SPRINT {int(player.boost_timer / boost_dur * 100)}%", 16, 110, 80, (100, 255, 255), center=False)

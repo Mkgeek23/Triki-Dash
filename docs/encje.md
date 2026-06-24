@@ -117,6 +117,20 @@ Rysowanie: czerwone prostokąty na zablokowanych pasach, obsługa night mode.
 
 Mini-boss pojawiający się co 3 fale (score co 3000, od 3 fali). Ma 3 HP. Po pojawieniu się zatrzymuje na górze ekranu i oscyluje w pionie, strzelając pociskami `EnemyBullet` co 40-90 klatek.
 
+## `PowerUp` ~linia 593
+
+Power-up zbierany na drodze. Pojawia się co 800-1200 dystansu. 5 typów:
+
+| Typ | Kolor | Ikona | Efekt |
+|-----|-------|-------|-------|
+| `star` | Złoty | 5 kropek (gwiazdki) | Nieśmiertelność 5s (`player.invincible`) |
+| `double` | Srebrny | Dwa okręgi | Podwójne monety 8s (`pt * 2`) |
+| `slow` | Niebieski | Dwie elipsy (klepsydra) | Spowolnienie 4s (`scroll * 0.5`) |
+| `rapid` | Cyjan | Trójkąt (błyskawica) | Szybkostrzelność 6s (max_ammo=6, cooldown=5) |
+| `magnet` | Fioletowy | Okrąg + prostokąt | Magnes 5s (`m_range = WIDTH`) |
+
+Rysowanie: kolorowe koło z glow efektem i białą ikoną wewnątrz. Unosi się (bob).
+
 - `size` = 50px
 - Bonus za zniszczenie: +50 punktów, efekt cząsteczkowy
 - Kolizja z graczem: strata życia lub tarczy

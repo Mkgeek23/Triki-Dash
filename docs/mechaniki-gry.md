@@ -128,6 +128,24 @@ Przy wejściu do nowej strefy: komunikat "STREFA X – NAZWA" (120 ticków).
 - Ustawiane na `False` przy każdej kolizji z przeszkodą/wrogiem
 - Jeśli fala kończy się z `wave_clear = True`: +100 punktów + flare efekt
 
+## Power-upy
+
+Power-up pojawia się na drodze co 800-1200 dystansu (maksymalnie 1 aktywny). Po zebraniu aktywuje się na określony czas.
+
+| Power-up | Czas | Efekt | Wizualnie |
+|----------|------|-------|-----------|
+| ⭐ Nieśmiertelność | 5s | Ignorowanie kolizji | Migotanie gracza |
+| ♦ Podwójne monety | 8s | ×2 punkty za monety | HUD "x2 MONETY" |
+| ⏳ Spowolnienie | 4s | Scroll -50% | Niebieski filtr (50,80,180,40) |
+| ⚡ Szybkostrzelność | 6s | max_ammo=6, shoot_cooldown=5, auto-regen | Cyjanowa poświata wokół gracza |
+| 🧲 Magnes | 5s | Przyciąganie z całego ekranu | Fioletowa poświata wokół gracza |
+
+**Implementacja:** `PowerUp` ~linia 593, lista `powerups`, zmienne `active_powerup` / `powerup_timer` w `game_loop`.
+
+**Spawn:** Gdy `active_powerup is None` i `score - last_powerup_score >= random(800, 1200)`.
+**Kolekcja:** Kolizja z graczem → ustawia `active_powerup` i `powerup_timer` z `POWERUP_DURATION`.
+**Efekty:** Modyfikacja `effective_scroll` (slow), `m_range` (magnet), `player.max_ammo`/`shoot_cooldown` (rapid), `player.invincible` (star), `pt * 2` (double).
+
 ## Sprint (boost)
 
 - Klawisz S lub potrząśnięcie Triki (gy + gz > 2500)

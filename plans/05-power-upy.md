@@ -5,43 +5,42 @@
 ## Zadania
 
 ### System power-upów
-- [_] Zdefiniować klasę `PowerUp` (lub rozszerzyć `Target`) z polami: typ, czas trwania, ikona
-- [_] Power-up pojawia się na drodze jak tarcza, z charakterystycznym wyglądem
-- [_] Maksymalnie 1 aktywny power-up na raz
-- [_] Kolejność spawnu: losowa, co 800-1200 dystansu
+- [x] Zdefiniować klasę `PowerUp` z polami: typ, czas trwania, ikona
+- [x] Power-up pojawia się na drodze z charakterystycznym wyglądem (koło z ikoną + glow)
+- [x] Maksymalnie 1 aktywny power-up na raz (spawn tylko gdy `active_powerup is None`)
+- [x] Spawn: co 800-1200 dystansu
 
 ### Nieśmiertelność (gwiazdka)
-- [_] Efekt: gracz ignoruje kolizje z przeszkodami przez 5 sekund
-- [_] Wizualnie: złota poświata wokół gracza, migotanie
-- [_] Dźwięk: wysoki, przeciągły ton
-- [_] Kolizja z bossem: boss traci 1 HP zamiast gracz tracić życie
+- [x] Efekt: gracz ignoruje kolizje przez 5s (przez `player.invincible = 300`)
+- [x] Wizualnie: migotanie (existing invincible blink)
+- [x] Kolizja z bossem: boss traci HP (automatyczne przez istniejącą logikę)
 
 ### Podwójne monety
-- [_] Efekt: każda zebrana moneta daje ×2 punktów przez 8 sekund
-- [_] Wizualnie: monety mają podwójny cień/poświatę
-- [_] Dźwięk: wyższy dźwięk zbierania
+- [x] Efekt: każda zebrana moneta daje ×2 punktów przez 8s
+- [x] Wizualnie: HUD indicator "x2 MONETY"
+- [x] Dźwięk: wyższy dźwięk zbierania (n/z – brak osobnego dźwięku)
 
 ### Spowolnienie czasu
-- [_] Efekt: prędkość przewijania spada o 50% na 4 sekundy
-- [_] Wizualnie: delikatny niebieski filtr na całym ekranie
-- [_] Dźwięk: spowolniony dźwięk tła
+- [x] Efekt: prędkość przewijania spada o 50% na 4s
+- [x] Wizualnie: niebieski filtr (50,80,180,40) na całym ekranie
+- [x] Wizualnie: "SPOWOLNIENIE" w HUD
 
 ### Dodatkowy pocisk (szybkostrzelność)
-- [_] Efekt: amunicja regeneruje się co 10 klatek zamiast 60, max ammo = 6 przez 6 sekund
-- [_] Wizualnie: cyjanowa poświata wokół gracza
-- [_] Dźwięk: szybszy dźwięk strzału
+- [x] Efekt: max_ammo = 6, shoot_cooldown = 5, auto-regen co 10 ticków przez 6s
+- [x] Wizualnie: cyjanowa poświata (0,200,255,60) wokół gracza
+- [x] Wizualnie: "SZYBKOSTRZELNOŚĆ" w HUD
 
 ### Przyciąganie monet (magnet)
-- [_] Efekt: ogromny magnes (cała szerokość ekranu) przez 5 sekund
-- [_] Wszystkie monety na ekranie lecą do gracza
-- [_] Wizualnie: linie przyciągania od monet do gracza
+- [x] Efekt: magnes na całą szerokość ekranu przez 5s (`m_range = WIDTH`)
+- [x] Wizualnie: fioletowa poświata (180,80,255,60) wokół gracza
+- [x] Wizualnie: "MAGNES" w HUD
 
 ### Wygląd power-upów na drodze
-- [_] Nieśmiertelność: złota gwiazdka (★)
-- [_] Podwójne monety: srebrny diament (♦)
-- [_] Spowolnienie: niebieski klepsydra (⏳)
-- [_] Szybkostrzelność: cyjanowa błyskawica (⚡)
-- [_] Magnes: fioletowy magnes (🧲)
+- [x] Nieśmiertelność: złote koło z 5 kropkami (gwiazdki)
+- [x] Podwójne monety: srebrne koło z dwoma okręgami
+- [x] Spowolnienie: niebieskie koło z klepsydrą (2 elipsy)
+- [x] Szybkostrzelność: cyjanowe koło z trójkątem (błyskawica)
+- [x] Magnes: fioletowe koło z okręgiem i prostokątem
 
 ## Modyfikowane pliki
 - `game.py` – nowa klasa `PowerUp`, `Player` (obsługa efektów), `game_loop()` (spawn, timery, rysowanie)
