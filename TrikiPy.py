@@ -84,7 +84,10 @@ class TrikiDevice:
         # Ramkujemy WYŁĄCZNIE po nagłówku + długości.
         # NIE odrzucamy ramki IMU na podstawie drugiego bajtu — to bajt
         # statusu/flag (zawiera m.in. stan przycisku), który bywa != 0x00.
-        while self._data_buffer:
+        max_iter = 32
+        iterations = 0
+        while self._data_buffer and iterations < max_iter:
+            iterations += 1
             head = self._data_buffer[0]
 
             if head == self._DATA_HEADER:
@@ -135,10 +138,10 @@ class TrikiDevice:
         except Exception:
             return False
 
-    async def getTrikiData(self) -> TrikiData:
+    async def getTrikiData(self, timeout: float = 5.0) -> TrikiData:
         if not self._is_streaming:
             raise RuntimeError("Triki is not started. Call startTriki() first.")
-        return await self._data_queue.get()
+        return await asyncio.wait_for(self._data_queue.get(), timeout=timeout)
 
     async def stopTriki(self) -> bool:
         if not self._client or not self._client.is_connected:

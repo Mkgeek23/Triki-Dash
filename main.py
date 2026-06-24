@@ -66,7 +66,7 @@ async def main():
 
             print()
 
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, asyncio.TimeoutError):
         pass
     finally:
         print("\nZatrzymuję...")

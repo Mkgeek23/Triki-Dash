@@ -100,6 +100,10 @@ triki_button = False
 triki_button_raw = False
 triki_accel = (0, 0, 0)
 
+_save_tick = 0
+_coins_need_save = False
+_challenges_need_save = False
+
 s_coin = s_hit = s_shield = s_milestone = s_boost = s_portal = s_shoot = None
 
 UPGRADE_FILE = "triki_upgrades.json"
@@ -220,6 +224,15 @@ def save_challenges(data):
             json.dump(data, f)
     except:
         pass
+
+def flush_saves(total_coins_val=None, challenges_val=None):
+    global _coins_need_save, _challenges_need_save
+    if _coins_need_save and total_coins_val is not None:
+        save_total_coins(total_coins_val)
+        _coins_need_save = False
+    if _challenges_need_save and challenges_val is not None:
+        save_challenges(challenges_val)
+        _challenges_need_save = False
 
 class Player:
     def __init__(self, extra_lives=0):
@@ -773,11 +786,12 @@ class Fork:
         self.chosen = None
         self.left_reward = random.choice(['coins', 'speed'])
         self.right_reward = random.choice(['shield', 'points'])
+        self.scroll = scroll
 
     def update(self):
         if self.active:
             self.timer -= 1
-            self.y += scroll
+            self.y += self.scroll
         if self.timer <= 0 and self.chosen is None:
             self.chosen = 'left'
             self.active = False
@@ -1437,6 +1451,7 @@ def spawn_group_obstacle(obstacles, base_speed):
 
 def game_loop(screen, upgrades):
     global triki_analog, triki_running, triki_battery, triki_button, triki_button_raw
+    global _save_tick, _coins_need_save, _challenges_need_save
     extra_lives = upgrades.get('life_level', 0)
     sprint_bonus = upgrades.get('sprint_level', 0) * 60
     magnet_bonus = upgrades.get('magnet_level', 0) * 40
@@ -1516,6 +1531,7 @@ def game_loop(screen, upgrades):
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 triki_running = False
+                flush_saves(total_coins, challenges)
                 return None, None, None, None
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_p:
@@ -1529,7 +1545,7 @@ def game_loop(screen, upgrades):
                             ch['progress'] = min(ch['target'], ch['progress'] + 1)
                             if ch['progress'] >= ch['target']:
                                 ch['done'] = True
-                    save_challenges(challenges)
+                    _challenges_need_save = True
                     s_boost.play()
                     status_msg = "SPRINT!"
                     status_timer = 60
@@ -1556,6 +1572,7 @@ def game_loop(screen, upgrades):
                         last_lane_change_tick = diff_tick
                     if e.key == pygame.K_ESCAPE:
                         triki_running = False
+                        flush_saves(total_coins, challenges)
                         return None, None, None, None
                 if not paused and not portal_mode:
                     if e.key == pygame.K_SPACE:
@@ -1602,7 +1619,7 @@ def game_loop(screen, upgrades):
                     if c.special:
                         player.special_coins += 1
                     total_coins += 1
-                    save_total_coins(total_coins)
+                    _coins_need_save = True
                     score += 50 * c.points
                     particles.append(Particle(c.x, c.y, c.color, 8))
                     s_coin.play()
@@ -1615,7 +1632,7 @@ def game_loop(screen, upgrades):
                             ch['progress'] = min(ch['target'], ch['progress'] + 1)
                             if ch['progress'] >= ch['target']:
                                 ch['done'] = True
-                    save_challenges(challenges)
+                    _challenges_need_save = True
 
             for p in particles[:]:
                 p.update()
@@ -1700,7 +1717,7 @@ def game_loop(screen, upgrades):
                         ch['progress'] = min(ch['target'], ch['progress'] + 1)
                         if ch['progress'] >= ch['target']:
                             ch['done'] = True
-                save_challenges(challenges)
+                _challenges_need_save = True
                 s_boost.play()
                 status_msg = "SPRINT z Triki!"
                 status_timer = 60
@@ -2016,7 +2033,7 @@ def game_loop(screen, upgrades):
                         s_hit.play()
                         particles.append(Particle(player.x + PLAYER_SIZE // 2, player.y, RED, 14))
                         if player.lives <= 0:
-                            save_total_coins(total_coins)
+                            flush_saves(total_coins, challenges)
                             return score, coins_collected, player.max_combo, challenges
                         status_msg = f"Pozostało żyć: {player.lives}"
                         status_timer = 60
@@ -2038,7 +2055,7 @@ def game_loop(screen, upgrades):
                         shake_intensity = 8
                         s_hit.play()
                         if player.lives <= 0:
-                            save_total_coins(total_coins)
+                            flush_saves(total_coins, challenges)
                             return score, coins_collected, player.max_combo, challenges
                         status_msg = f"Tarczowa przeszkoda! +{int(50 * life_mult)} (straciłeś życie)"
                     status_timer = 60
@@ -2067,7 +2084,7 @@ def game_loop(screen, upgrades):
                     shake_intensity = 8
                     s_hit.play()
                     if player.lives <= 0:
-                        save_total_coins(total_coins)
+                        flush_saves(total_coins, challenges)
                         return score, coins_collected, player.max_combo, challenges
                     status_msg = f"Pozostało żyć: {player.lives}"
                     status_timer = 60
@@ -2086,7 +2103,7 @@ def game_loop(screen, upgrades):
                     shake_intensity = 8
                     s_hit.play()
                     if player.lives <= 0:
-                        save_total_coins(total_coins)
+                        flush_saves(total_coins, challenges)
                         return score, coins_collected, player.max_combo, challenges
                     status_msg = f"Pozostało żyć: {player.lives}"
                     status_timer = 60
@@ -2113,7 +2130,7 @@ def game_loop(screen, upgrades):
                     shake_intensity = 8
                     s_hit.play()
                     if player.lives <= 0:
-                        save_total_coins(total_coins)
+                        flush_saves(total_coins, challenges)
                         return score, coins_collected, player.max_combo, challenges
                     status_msg = f"Pozostało żyć: {player.lives}"
                     status_timer = 60
@@ -2137,7 +2154,7 @@ def game_loop(screen, upgrades):
                     shake_intensity = 8
                     s_hit.play()
                     if player.lives <= 0:
-                        save_total_coins(total_coins)
+                        flush_saves(total_coins, challenges)
                         return score, coins_collected, player.max_combo, challenges
                     status_msg = f"Pozostało żyć: {player.lives}"
                     status_timer = 60
@@ -2159,7 +2176,7 @@ def game_loop(screen, upgrades):
                     shake_intensity = 8
                     s_hit.play()
                     if player.lives <= 0:
-                        save_total_coins(total_coins)
+                        flush_saves(total_coins, challenges)
                         return score, coins_collected, player.max_combo, challenges
                     status_msg = f"Pozostało żyć: {player.lives}"
                     status_timer = 60
@@ -2210,7 +2227,7 @@ def game_loop(screen, upgrades):
                     ch['progress'] = min(ch['target'], shoot_hits)
                 if ch['progress'] >= ch['target']:
                     ch['done'] = True
-        save_challenges(challenges)
+        _challenges_need_save = True
 
         for c in coin_objs[:]:
             c.update()
@@ -2238,7 +2255,7 @@ def game_loop(screen, upgrades):
                             shake_intensity = 8
                             s_hit.play()
                             if player.lives <= 0:
-                                save_total_coins(total_coins)
+                                flush_saves(total_coins, challenges)
                                 return score, coins_collected, player.max_combo, challenges
                             status_msg = "Straciłeś życie! Ryzykowna moneta +10"
                         status_timer = 60
@@ -2263,7 +2280,7 @@ def game_loop(screen, upgrades):
                 total_coins += 1
                 if total_coins % 10 == 0:
                     player.reload(1)
-                save_total_coins(total_coins)
+                _coins_need_save = True
                 pt = 50 * c.points
                 if active_powerup == 'double':
                     pt *= 2
@@ -2288,7 +2305,7 @@ def game_loop(screen, upgrades):
                         ch['progress'] = min(ch['target'], ch['progress'] + 1)
                         if ch['progress'] >= ch['target']:
                             ch['done'] = True
-                save_challenges(challenges)
+                _challenges_need_save = True
 
         for pu in powerups[:]:
             pu.update()
@@ -2481,8 +2498,14 @@ def game_loop(screen, upgrades):
         if status_timer > 0:
             draw_text(screen, status_msg, 20, WIDTH // 2, 105, WHITE)
 
+        _save_tick += 1
+        if _save_tick >= 300:
+            _save_tick = 0
+            flush_saves(total_coins, challenges)
+
         pygame.display.flip()
 
+    flush_saves(total_coins, challenges)
     return None, None, None, None
 
 def main():
