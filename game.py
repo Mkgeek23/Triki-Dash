@@ -527,9 +527,22 @@ class Target:
 class Road:
     def __init__(self):
         self.offset = 0
+        self.stars = []
+        for _ in range(80):
+            sx = random.randint(20, WIDTH - 20)
+            sy = random.randint(20, HEIGHT - 20)
+            bright = random.randint(60, 200)
+            r = random.choice([1, 1, 1, 2])
+            self.stars.append((sx, sy, bright, r))
 
     def update(self, speed):
         self.offset = (self.offset + speed) % 80
+
+    def _draw_starfield(self, screen, blink_frame=0):
+        for i, (sx, sy, bright, r) in enumerate(self.stars):
+            blink = abs(60 - (blink_frame + i * 7) % 120) / 60
+            b = int(bright * (0.6 + 0.4 * blink))
+            pygame.draw.circle(screen, (b, b, b), (sx, sy), r)
 
     def draw(self, screen, speed=4, tod=0.0, night=False, portal_mode=False):
         if portal_mode:
@@ -547,7 +560,7 @@ class Road:
             return
 
         bg_colors = [
-            (25, 25, 50), (45, 45, 60), (60, 55, 50), (80, 60, 50), (50, 40, 60), (25, 25, 50),
+            (8, 4, 22), (12, 6, 32), (20, 10, 40), (30, 15, 50), (20, 10, 35), (8, 4, 22),
         ]
         idx = int(tod) % (len(bg_colors) - 1)
         t = tod - int(tod)
@@ -556,18 +569,37 @@ class Road:
               int(c1[1] + (c2[1] - c1[1]) * t),
               int(c1[2] + (c2[2] - c1[2]) * t))
         if night:
-            bg = (max(0, bg[0] - 40), max(0, bg[1] - 40), max(0, bg[2] - 40))
+            bg = (max(0, bg[0] - 20), max(0, bg[1] - 20), max(0, bg[2] - 20))
         screen.fill(bg)
-        road_bg = (bg[0] + 20, bg[1] + 20, bg[2] + 20)
+        self._draw_starfield(screen, speed * 10)
+
+        glow = (60, 30, 120)
+        for g in range(3, 0, -1):
+            glow_alpha = int(15 / (g + 1))
+            r = max(0, glow[0] - g * 8)
+            gv = max(0, glow[1] - g * 5)
+            b = max(0, glow[2] - g * 15)
+            pygame.draw.rect(screen, (r, gv, b), (LANE_OFFSET - g, 0, LANE_COUNT * LANE_WIDTH + g * 2, HEIGHT), g)
+
+        road_bg = (max(0, bg[0] - 3), max(0, bg[1] - 3), max(0, bg[2] - 3))
         pygame.draw.rect(screen, road_bg, (LANE_OFFSET, 0, LANE_COUNT * LANE_WIDTH, HEIGHT))
-        lc = (bg[0] + 50, bg[1] + 50, bg[2] + 50)
+
         for i in range(LANE_COUNT + 1):
             lx = i * LANE_WIDTH + LANE_OFFSET
-            pygame.draw.line(screen, lc, (lx, 0), (lx, HEIGHT), 2)
+            for g in (3, 1):
+                c = (min(20, 255), min(g * 60, 255), min(g * 80 + 40, 255)) if i == 0 or i == LANE_COUNT else (0, min(g * 40, 255), min(g * 60, 255))
+                pygame.draw.line(screen, c, (lx, 0), (lx, HEIGHT), g if g > 1 else 1)
+
+        neon = (0, 180, 255)
         for y in range(-80 + int(self.offset), HEIGHT, 80):
             for i in range(LANE_COUNT):
                 lx = i * LANE_WIDTH + LANE_WIDTH // 2 + LANE_OFFSET
-                pygame.draw.line(screen, lc, (lx, y), (lx, y + 40), 2)
+                for g in (5, 3, 1):
+                    a = max(0, 100 - g * 20)
+                    c = (0, a, min(255, a + 100))
+                    if g < 3:
+                        pygame.draw.line(screen, c, (lx, y + 4 - g), (lx, y + 36 + g), g)
+                pygame.draw.line(screen, (180, 255, 255), (lx, y + 4), (lx, y + 36), 1)
 
         sl = max(0, int(speed - 3))
         if sl > 0:
@@ -576,7 +608,7 @@ class Road:
                     ly = (j * 200 + int(self.offset * 1.5)) % (HEIGHT + 100) - 50
                     llen = 15 + sl * 3
                     bright = min(200, 80 + sl * 20)
-                    pygame.draw.line(screen, (bright, bright, bright), (side_x, ly), (side_x, ly + llen), 2)
+                    pygame.draw.line(screen, (bright // 2, bright, bright), (side_x, ly), (side_x, ly + llen), 2)
 
 def triki_thread():
     asyncio.run(_triki_loop())
@@ -694,8 +726,12 @@ def show_shop(screen, upgrades):
             else:
                 make_sound(200, 200).play()
 
+    blink = 0
+    shop_stars = make_menu_stars()
+
     while True:
         clock.tick(30)
+        blink = (blink + 1) % 60
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
@@ -732,6 +768,7 @@ def show_shop(screen, upgrades):
         }
 
         screen.fill(BLACK)
+        draw_menu_stars(screen, shop_stars, blink)
         menu_draw_frame(screen, GOLD)
         draw_text(screen, "SKLEP ULEPSZEŃ", 42, WIDTH // 2, 50, GOLD)
         draw_text(screen, f"Dostępne gwiazdki: {upgrades['stars']} ★", 26, WIDTH // 2, 95, WHITE)
@@ -762,6 +799,22 @@ def show_shop(screen, upgrades):
         draw_text(screen, "Przechyl Triki / Strzałki - wybór  |  Przycisk / ENTER - akceptuj", 16, WIDTH // 2, HEIGHT - 40, LIGHT_GRAY)
         pygame.display.flip()
 
+def make_menu_stars():
+    stars = []
+    for _ in range(80):
+        sx = random.randint(20, WIDTH - 20)
+        sy = random.randint(20, HEIGHT - 20)
+        bright = random.randint(60, 200)
+        r = random.choice([1, 1, 1, 2])
+        stars.append((sx, sy, bright, r))
+    return stars
+
+def draw_menu_stars(screen, stars, blink_frame=0):
+    for i, (sx, sy, bright, r) in enumerate(stars):
+        blink = abs(60 - (blink_frame + i * 7) % 120) / 60
+        b = int(bright * (0.6 + 0.4 * blink))
+        pygame.draw.circle(screen, (b, b, b), (sx, sy), r)
+
 def menu_draw_frame(screen, color=CYAN):
     pygame.draw.rect(screen, color, (10, 10, WIDTH - 20, HEIGHT - 20), 3)
     for i in range(8):
@@ -787,6 +840,8 @@ def show_start(screen):
             status_color = RED
         elif "gotowy" in connection_status or "podłączony" in connection_status:
             status_color = GREEN
+
+    menu_stars = make_menu_stars()
 
     while True:
         clock.tick(30)
@@ -838,6 +893,7 @@ def show_start(screen):
                 return False
 
         screen.fill(BLACK)
+        draw_menu_stars(screen, menu_stars, blink)
         menu_draw_frame(screen, CYAN)
 
         draw_text(screen, "TRiKI RUNNER", 56, WIDTH // 2, 65, GREEN)
@@ -876,6 +932,7 @@ def show_over(screen, score, coins, highscore, stars, best_stars, challenges):
     blink = 0
     last_tilt_time = 0
     last_shake_mag = 0
+    menu_stars = make_menu_stars()
 
     while True:
         clock.tick(30)
@@ -920,6 +977,7 @@ def show_over(screen, score, coins, highscore, stars, best_stars, challenges):
                 return False
 
         screen.fill(BLACK)
+        draw_menu_stars(screen, menu_stars, blink)
         menu_draw_frame(screen, RED)
 
         draw_text(screen, "KONIEC GRY", 56, WIDTH // 2, 60, RED)
