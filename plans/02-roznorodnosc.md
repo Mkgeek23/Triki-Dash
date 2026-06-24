@@ -5,10 +5,10 @@
 ## Zadania
 
 ### Przeszkody ruchome
-- [_] Stworzyć klasę `MovingObstacle` – przeszkoda zmieniająca pasy (sinusoidalnie lub losowo)
-- [_] Określić parametry: prędkość ruchu bocznego, zakres pasów
-- [_] Dodać spawn `MovingObstacle` w `game_loop` z małym prawdopodobieństwem
-- [_] Rysowanie: czerwony blok z delikatną poświatą kierunku ruchu
+- [x] Stworzyć klasę `MovingObstacle` – przeszkoda zmieniająca pasy (sinusoidalnie lub losowo)
+- [x] Określić parametry: prędkość ruchu bocznego, zakres pasów
+- [x] Dodać spawn `MovingObstacle` w `game_loop` z małym prawdopodobieństwem (zone 1+, 4%)
+- [x] Rysowanie: czerwony blok z delikatną poświatą kierunku ruchu
 
 ### Przeszkody wirujące
 - [_] Stworzyć klasę `SpinningObstacle` – blok wirujący wokół własnej osi
@@ -16,19 +16,19 @@
 - [_] Dodać spawn w `game_loop`
 
 ### Blokady (wall)
-- [_] Stworzyć klasę `WallObstacle` – blokada na 6 z 7 pasów z małą przerwą
-- [_] Gracz musi szybko znaleźć przerwę i przemieścić się na odpowiedni pas
-- [_] Dodać spawn przy wyższych poziomach trudności (dystans > 3000)
+- [x] Stworzyć klasę `WallObstacle` – blokada na 6 z 7 pasów z małą przerwą
+- [x] Gracz musi szybko znaleźć przerwę i przemieścić się na odpowiedni pas
+- [x] Dodać spawn przy wyższych poziomach trudności (zone 2+, 2.5%)
 
 ### Wrogowie strzelający
-- [_] Rozszerzyć klasę `Drone` o możliwość strzelania
-- [_] Pociski wroga: czerwone, lecą w dół, gracz musi unikać
-- [_] Częstotliwość strzałów: co 60-120 klatek
+- [x] Rozszerzyć klasę `Drone` o możliwość strzelania
+- [x] Pociski wroga: czerwone, lecą w dół, gracz musi unikać
+- [x] Częstotliwość strzałów: co 60-120 klatek
 
 ### Mini-boss
-- [_] Nowa klasa `MiniBoss` – pojawia się co 1000 dystansu, ma 2-3 HP
-- [_] Zachowanie: powolny ruch w górę i w dół, strzela pociskami
-- [_] Po pokonaniu: bonus 50 punktów + moneta specjalna
+- [x] Nowa klasa `MiniBoss` – pojawia się co 3 fale, ma 3 HP
+- [x] Zachowanie: powolny ruch w górę i w dół, strzela pociskami
+- [x] Po pokonaniu: bonus 50 punktów + efekt cząsteczkowy
 
 ## Modyfikowane pliki
 - `game.py` – nowe klasy encji, `game_loop()` spawn, kolizje, rysowanie

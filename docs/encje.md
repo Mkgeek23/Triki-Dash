@@ -72,23 +72,58 @@ Rysowanie: okrąg z glow efektem, złote mają płomień.
 
 Portal do strefy bonusowej. Pulsujący cyjanowy okrąg. Znika po dotknięciu lub po 180 klatkach.
 
-## `Bullet` ~linia 424
+## `Bullet` ~linia 428
 
 Pocisk gracza. Leci w górę. Po trafieniu w przeszkodę: dzieli ją na 2 mniejsze lub niszczy. Po trafieniu w drona: -1 HP (dron ma 2 HP). Po trafieniu w tarczę: zbiera ją.
 
 Rysowanie: cyjanowy pocisk z fioletowym trailerm.
 
-## `Drone` ~linia 449
+## `EnemyBullet` ~linia 452
 
-Latający wróg. Porusza się sinusoidalnie w poziomie (`x += sin(krok) * 2`). Wymaga 2 trafień. Po zniszczeniu: spawni tarczę (shield).
+Pocisk wroga (dronów i mini-bossów). Leci w dół. Kolizja z graczem: traci życie lub tarczę.
+
+Rysowanie: czerwone koło z jaśniejszym wnętrzem.
+
+## `Drone` ~linia 469
+
+Latający wróg. Porusza się sinusoidalnie w poziomie (`x += sin(krok) * 2`). Wymaga 2 trafień. Po zniszczeniu: spawni tarczę (shield). Strzela pociskami `EnemyBullet` co 60-120 klatek od momentu spawnu (pierwszy strzał po 30-90 klatkach).
 
 Rysowanie: czerwono-różowe koło z wirującymi kropkami.
 
-## `Target` ~linia 489
+## `Target` ~linia 517
 
 Tarcza (power-up shield). Pulsuje, pokazuje mnożnik combo gracza. Po zebraniu: `player.shielded = True`.
 
-## `Road` ~linia 527
+## `MovingObstacle` ~linia 549
+
+Ruchoma przeszkoda. Porusza się w dół z prędkością scrolla, jednocześnie oscyluje sinusoidalnie w poziomie. Nie opuszcza obszaru pasów. Pojawia się od zone 1 (score ≥ 2000) z prawdopodobieństwem 4%.
+
+- `size` = 28px
+- `move_speed` = 1.0-2.5 (sinusoidalna amplituda)
+- Kolizja z graczem: strata życia lub tarczy
+
+Rysowanie: ceglasty prostokąt z jaśniejszym wewnętrznym blokiem i migającą kreską wskazującą kierunek ruchu, obsługa night mode.
+
+## `WallObstacle` ~linia 577
+
+Blokada drogowa. Zajmuje 6 z 7 pasów, pozostawiając jedną lukę (losowy pas). Pojawia się od zone 2 (score ≥ 5000) z prawdopodobieństwem 2.5%.
+
+- `gap_lane` – pas z przerwą (0-6)
+- Kolizja: sprawdza czy gracz jest na zablokowanym pasie I czy jego prostokąt nachodzi na ścianę
+
+Rysowanie: czerwone prostokąty na zablokowanych pasach, obsługa night mode.
+
+## `MiniBoss` ~linia 605
+
+Mini-boss pojawiający się co 3 fale (score co 3000, od 3 fali). Ma 3 HP. Po pojawieniu się zatrzymuje na górze ekranu i oscyluje w pionie, strzelając pociskami `EnemyBullet` co 40-90 klatek.
+
+- `size` = 50px
+- Bonus za zniszczenie: +50 punktów, efekt cząsteczkowy
+- Kolizja z graczem: strata życia lub tarczy
+
+Rysowanie: fioletowy/czerwony prostokąt z trzema wirującymi kropkami (wzór podobny do drim), obsługa night mode.
+
+## `Road` ~linia 643
 
 Tło i droga.
 

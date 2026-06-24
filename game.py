@@ -449,6 +449,24 @@ class Bullet:
     def get_rect(self):
         return pygame.Rect(self.x - 3, self.y - 10, 6, 20)
 
+class EnemyBullet:
+    def __init__(self, x, y, speed=5):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.radius = 5
+
+    def update(self):
+        self.y += self.speed
+
+    def draw(self, screen, offset=(0, 0)):
+        ox, oy = offset
+        pygame.draw.circle(screen, (255, 50, 50), (int(self.x + ox), int(self.y + oy)), self.radius)
+        pygame.draw.circle(screen, (255, 150, 150), (int(self.x + ox), int(self.y + oy)), self.radius - 2)
+
+    def get_rect(self):
+        return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
+
 class Drone:
     def __init__(self, base_speed):
         side = random.choice([-1, 1])
@@ -460,11 +478,16 @@ class Drone:
         self.phase = random.uniform(0, math.pi * 2)
         self.size = 24
         self.hp = 1
+        self.shoot_timer = random.randint(30, 90)
 
-    def update(self):
+    def update(self, enemy_bullets=None):
         self.x += self.dir * self.speed
         self.y += math.sin(self.phase) * 0.5
         self.phase += 0.03
+        self.shoot_timer -= 1
+        if self.shoot_timer <= 0 and enemy_bullets is not None:
+            self.shoot_timer = random.randint(60, 120)
+            enemy_bullets.append(EnemyBullet(self.x, self.y + self.size // 2))
         if self.dir == -1 and self.x > LANE_OFFSET + LANE_COUNT * LANE_WIDTH + 30:
             self.alive = False
         elif self.dir == 1 and self.x < LANE_OFFSET - 30:
@@ -523,6 +546,116 @@ class Target:
     def get_rect(self):
         r = self.radius + 4
         return pygame.Rect(self.x - r, self.y - r, r * 2, r * 2)
+
+class MovingObstacle:
+    def __init__(self, base_speed):
+        self.size = 28
+        area_left = LANE_OFFSET + 10
+        area_right = LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 10
+        self.x = random.uniform(area_left, area_right - self.size)
+        self.y = -self.size
+        self.speed = base_speed
+        self.dir = random.choice([-1, 1])
+        self.move_speed = random.uniform(1.0, 2.5)
+        self.phase = random.uniform(0, math.pi * 2)
+
+    def update(self):
+        self.y += self.speed
+        self.x += math.sin(self.phase) * self.move_speed
+        self.phase += 0.04
+        area_left = LANE_OFFSET + 10
+        area_right = LANE_OFFSET + LANE_COUNT * LANE_WIDTH - 10
+        self.x = max(area_left, min(area_right - self.size, self.x))
+
+    def draw(self, screen, offset=(0, 0), night=False):
+        ox, oy = offset
+        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        c = (220, 100, 60)
+        pygame.draw.rect(s, c, (2, 2, self.size - 4, self.size - 4), border_radius=4)
+        darker = (180, 70, 40)
+        pygame.draw.rect(s, darker, (0, 0, self.size, self.size), 2, border_radius=4)
+        glow = (255, 140, 80)
+        dx = int(math.sin(self.phase) * 4)
+        pygame.draw.rect(s, glow, (self.size // 2 - 1 + dx, self.size // 2 - 5, 2, 10))
+        if night:
+            pygame.draw.rect(s, (255, 150, 100, 200), (0, 0, self.size, self.size), 3, border_radius=4)
+        screen.blit(s, (int(self.x + ox), int(self.y + oy)))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.size, self.size)
+
+class WallObstacle:
+    def __init__(self, base_speed):
+        self.y = -34
+        self.speed = base_speed
+        self.gap_lane = random.randint(0, LANE_COUNT - 1)
+        self.gap_x = self.gap_lane * LANE_WIDTH + LANE_OFFSET
+        self.blocked = [(i * LANE_WIDTH + LANE_OFFSET) for i in range(LANE_COUNT) if i != self.gap_lane]
+
+    def update(self):
+        self.y += self.speed
+
+    def draw(self, screen, offset=(0, 0), night=False):
+        ox, oy = offset
+        for bx in self.blocked:
+            c = (200, 50, 70, 200)
+            s = pygame.Surface((LANE_WIDTH - 4, 30), pygame.SRCALPHA)
+            pygame.draw.rect(s, (200, 50, 70), (0, 0, LANE_WIDTH - 4, 30), border_radius=3)
+            pygame.draw.rect(s, (150, 30, 50), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
+            if night:
+                pygame.draw.rect(s, (255, 80, 80, 200), (0, 0, LANE_WIDTH - 4, 30), 2, border_radius=3)
+            screen.blit(s, (int(bx + 2 + ox), int(self.y + oy)))
+
+    def is_lane_blocked(self, player_rect):
+        cx = player_rect.centerx
+        lane = int((cx - LANE_OFFSET) // LANE_WIDTH)
+        return lane != self.gap_lane
+
+class MiniBoss:
+    def __init__(self, base_speed):
+        self.x = LANE_OFFSET + 10
+        self.y = -60
+        self.speed = base_speed * 0.4
+        self.size = 50
+        self.hp = 3
+        self.dir_y = 1
+        self.move_range = 60
+        self.start_y = 60
+        self.shoot_timer = 0
+        self.reached_y = False
+
+    def update(self, enemy_bullets=None):
+        if not self.reached_y:
+            self.y += self.speed * 0.5
+            if self.y >= self.start_y:
+                self.reached_y = True
+        else:
+            self.y += self.dir_y * 0.8
+            if abs(self.y - self.start_y) > self.move_range:
+                self.dir_y *= -1
+            self.shoot_timer -= 1
+            if self.shoot_timer <= 0 and enemy_bullets is not None:
+                self.shoot_timer = random.randint(40, 90)
+                enemy_bullets.append(EnemyBullet(self.x + self.size // 2, self.y + self.size))
+
+    def draw(self, screen, offset=(0, 0), night=False):
+        ox, oy = offset
+        cx, cy = int(self.x + self.size // 2 + ox), int(self.y + self.size // 2 + oy)
+        s = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        c = (120, 30, 80) if self.hp > 1 else (200, 40, 60)
+        pygame.draw.rect(s, c, (2, 2, self.size - 4, self.size - 4), border_radius=6)
+        pygame.draw.rect(s, (80, 15, 50), (0, 0, self.size, self.size), 3, border_radius=6)
+        for i in range(3):
+            angle = self.shoot_timer * 0.1 + i * math.pi * 2 / 3
+            px = self.size // 2 + int(math.cos(angle) * (self.size // 2 - 8))
+            py = self.size // 2 + int(math.sin(angle) * (self.size // 2 - 8))
+            pygame.draw.circle(s, (200, 50, 100), (px, py), 4)
+        if night:
+            pygame.draw.rect(s, (255, 80, 150, 200), (0, 0, self.size, self.size), 3, border_radius=6)
+        screen.blit(s, (int(self.x + ox), int(self.y + oy)))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.size, self.size)
 
 class Road:
     def __init__(self):
@@ -1116,6 +1249,10 @@ def game_loop(screen, upgrades):
     bullets = []
     drones = []
     targets = []
+    moving_obstacles = []
+    walls = []
+    enemy_bullets = []
+    mini_bosses = []
     score = 0
     coins_collected = 0
     scroll = SCROLL_SPEED_BASE
@@ -1391,6 +1528,18 @@ def game_loop(screen, upgrades):
         if spawn_tick > spawn_interval and random.random() < 0.06 and not portal_mode:
             drones.append(Drone(scroll))
 
+        if spawn_tick > spawn_interval and random.random() < 0.04 and current_zone >= 1 and not boss_active and not portal_mode and wave_cooldown == 0:
+            moving_obstacles.append(MovingObstacle(scroll))
+
+        if spawn_tick > spawn_interval and random.random() < 0.025 and current_zone >= 2 and not boss_active and not portal_mode and wave_cooldown == 0:
+            walls.append(WallObstacle(scroll))
+
+        mini_boss_wave = last_wave
+        if mini_boss_wave >= 3 and mini_boss_wave % 3 == 0 and not boss_active and not portal_mode and len([m for m in mini_bosses if m.y < HEIGHT + 60]) == 0:
+            mini_bosses.append(MiniBoss(scroll))
+            status_msg = "MINI-BOSS!"
+            status_timer = 60
+
         boss_wave = last_wave
         if boss_wave >= 5 and boss_wave % 5 == 0 and not boss_active and last_boss_score < boss_wave:
             last_boss_score = boss_wave
@@ -1454,6 +1603,34 @@ def game_loop(screen, upgrades):
                     score += 15
                     for _ in range(4):
                         particles.append(Particle(d.x, d.y, (255, 60, 100), 6))
+                    bullets.remove(b)
+                    hit = True
+                    break
+            if hit:
+                continue
+            for m in moving_obstacles[:]:
+                if b.get_rect().colliderect(m.get_rect()):
+                    moving_obstacles.remove(m)
+                    score += 10
+                    shoot_hits += 1
+                    particles.append(Particle(m.x + m.size // 2, m.y + m.size // 2, (220, 100, 60), 6))
+                    bullets.remove(b)
+                    hit = True
+                    break
+            if hit:
+                continue
+            for mb in mini_bosses[:]:
+                if b.get_rect().colliderect(mb.get_rect()):
+                    mb.hp -= 1
+                    particles.append(Particle(mb.x + mb.size // 2, mb.y + mb.size // 2, (200, 50, 100), 8))
+                    if mb.hp <= 0:
+                        mini_bosses.remove(mb)
+                        score += 50
+                        shoot_hits += 1
+                        for _ in range(5):
+                            particles.append(Particle(mb.x + mb.size // 2, mb.y + mb.size // 2, (255, 80, 150), 10))
+                        status_msg = "Mini-boss zniszczony! +50"
+                        status_timer = 60
                     bullets.remove(b)
                     hit = True
                     break
@@ -1532,6 +1709,98 @@ def game_loop(screen, upgrades):
                     status_msg = f"Pozostało żyć: {player.lives}"
                     status_timer = 60
 
+        for b in enemy_bullets[:]:
+            if player.get_rect().colliderect(b.get_rect()):
+                if player.shield:
+                    player.shield = False
+                    particles.append(Particle(player.x + PLAYER_SIZE // 2, player.y, PURPLE, 12))
+                    s_shield.play()
+                elif player.invincible <= 0:
+                    player.lives -= 1
+                    player.invincible = 90
+                    player.combo = 0
+                    shake_timer = 10
+                    shake_intensity = 8
+                    s_hit.play()
+                    if player.lives <= 0:
+                        save_total_coins(total_coins)
+                        return score, coins_collected, player.max_combo, challenges
+                    status_msg = f"Pozostało żyć: {player.lives}"
+                    status_timer = 60
+                enemy_bullets.remove(b)
+                continue
+
+        for m in moving_obstacles[:]:
+            m.update()
+            m.y += effective_scroll
+            if m.y > HEIGHT + 40:
+                moving_obstacles.remove(m)
+            elif player.get_rect().colliderect(m.get_rect()):
+                if player.shield:
+                    player.shield = False
+                    moving_obstacles.remove(m)
+                    particles.append(Particle(m.x + m.size // 2, m.y + m.size // 2, PURPLE, 12))
+                    s_shield.play()
+                elif player.invincible <= 0:
+                    player.lives -= 1
+                    player.invincible = 90
+                    player.combo = 0
+                    moving_obstacles.remove(m)
+                    shake_timer = 10
+                    shake_intensity = 8
+                    s_hit.play()
+                    if player.lives <= 0:
+                        save_total_coins(total_coins)
+                        return score, coins_collected, player.max_combo, challenges
+                    status_msg = f"Pozostało żyć: {player.lives}"
+                    status_timer = 60
+
+        for w in walls[:]:
+            w.update()
+            if w.y > HEIGHT + 40:
+                walls.remove(w)
+            elif w.is_lane_blocked(player.get_rect()) and player.get_rect().colliderect(w.get_rect()):
+                if player.shield:
+                    player.shield = False
+                    walls.remove(w)
+                    particles.append(Particle(player.x + PLAYER_SIZE // 2, player.y, PURPLE, 12))
+                    s_shield.play()
+                elif player.invincible <= 0:
+                    player.lives -= 1
+                    player.invincible = 90
+                    player.combo = 0
+                    walls.remove(w)
+                    shake_timer = 10
+                    shake_intensity = 8
+                    s_hit.play()
+                    if player.lives <= 0:
+                        save_total_coins(total_coins)
+                        return score, coins_collected, player.max_combo, challenges
+                    status_msg = f"Pozostało żyć: {player.lives}"
+                    status_timer = 60
+
+        for mb in mini_bosses[:]:
+            mb.update(enemy_bullets)
+            if mb.y > HEIGHT + 80:
+                mini_bosses.remove(mb)
+            elif player.get_rect().colliderect(mb.get_rect()):
+                if player.shield:
+                    player.shield = False
+                    particles.append(Particle(player.x + PLAYER_SIZE // 2, player.y, PURPLE, 12))
+                    s_shield.play()
+                elif player.invincible <= 0:
+                    player.lives -= 1
+                    player.invincible = 90
+                    player.combo = 0
+                    shake_timer = 10
+                    shake_intensity = 8
+                    s_hit.play()
+                    if player.lives <= 0:
+                        save_total_coins(total_coins)
+                        return score, coins_collected, player.max_combo, challenges
+                    status_msg = f"Pozostało żyć: {player.lives}"
+                    status_timer = 60
+
         if dodging and len(obstacles) == prev_obstacles_len:
             player.dodge_streak += 1
         else:
@@ -1539,7 +1808,7 @@ def game_loop(screen, upgrades):
             prev_obstacles_len = len(obstacles)
 
         for d in drones[:]:
-            d.update()
+            d.update(enemy_bullets)
             d.y += effective_scroll
             if not d.alive or d.y > HEIGHT + 40:
                 drones.remove(d)
@@ -1660,6 +1929,14 @@ def game_loop(screen, upgrades):
                 d.draw(screen, shake_offset)
             for t in targets:
                 t.draw(screen, shake_offset)
+            for m in moving_obstacles:
+                m.draw(screen, shake_offset, night_active)
+            for w in walls:
+                w.draw(screen, shake_offset, night_active)
+            for mb in mini_bosses:
+                mb.draw(screen, shake_offset, night_active)
+            for b in enemy_bullets:
+                b.draw(screen, shake_offset)
             for b in bullets:
                 b.draw(screen, shake_offset)
         for p in particles:

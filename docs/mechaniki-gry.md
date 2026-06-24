@@ -68,6 +68,20 @@ Przy wejściu do nowej strefy: komunikat "STREFA X – NAZWA" (120 ticków).
 - Kolizja z graczem: traci życie, jeśli nie ma tarczy
 - Boss: pojawia się co 5 fal, ma pasek HP (3-7 życia w zależności od boss_count)
 
+### Nowe typy przeszkód (Plan 02)
+
+| Typ | Strefa | Opis | Punkty |
+|-----|--------|------|--------|
+| `MovingObstacle` | 1+ (2000) | Oscyluje w poziomie, spawn 4% | 10 |
+| `WallObstacle` | 2+ (5000) | Blokada 6/7 pasów, spawn 2.5% | – |
+| `MiniBoss` | Fala 3,6,9... | 3 HP, strzela, +50 pkt | 50 |
+
+### Wrogowie strzelający
+
+- `Drone` od Plan 02: strzela czerwonymi pociskami co 60-120 klatek
+- `MiniBoss`: strzela co 40-90 klatek, porusza się w pionie
+- Pociski wroga (`EnemyBullet`): lecą w dół, kolizja = strata życia/tarczy
+
 ## Monety
 
 - Zwykłe (żółte): 1 punkt
@@ -115,6 +129,7 @@ Przy wejściu do nowej strefy: komunikat "STREFA X – NAZWA" (120 ticków).
 - Pociski lecą w górę, niszczą przeszkody, drony i tarcze
 - Drony wymagają 2 trafień
 - Po zniszczeniu drona: gracz dostaje tarczę
+- Pociski wroga (EnemyBullet): lecą w dół, gracz traci życie/tarczę przy kolizji
 
 ## Tarcza (shield)
 
